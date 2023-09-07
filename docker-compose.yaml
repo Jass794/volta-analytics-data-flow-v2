@@ -258,8 +258,9 @@ services:
     # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env
-
       _PIP_ADDITIONAL_REQUIREMENTS: ''
+    env_file:
+      - .env
     user: "0:0"
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
