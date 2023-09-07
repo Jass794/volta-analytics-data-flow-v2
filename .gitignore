@@ -1,0 +1,6 @@
+.venv
+/.env
+/.staging.env
+/venv/
+/logs/
+/.idea
