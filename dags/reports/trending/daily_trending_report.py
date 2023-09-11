@@ -1,9 +1,9 @@
 from email.mime.multipart import MIMEMultipart
 
-from ..utils.trending import *
+from utils.trending import *
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
-from ..utils.common import *
+from utils.common import *
 from loguru import logger
 import datetime as dt
 import notifiers
