@@ -66,7 +66,7 @@ def get_trending_df(analytics_api_token, location_node_id, report_date):
         'voltage_thd_ll', 'current_thd'
     ]]
     # Parse string to datetime
-    trending_df['time'] = pd.to_datetime(trending_df['time'], format='%Y-%m-%dT%H:%M:%S%z')
+    trending_df['time'] = pd.to_datetime(trending_df['time'], format='%Y-%m-%d %H:%M:%S%z')
     # Order by time ascending and reset index
     trending_df = trending_df.sort_values(by='time').reset_index(drop=True)
     # If date of most recent time is not the same as end date, return empty dataframe
