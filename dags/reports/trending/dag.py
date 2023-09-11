@@ -9,7 +9,7 @@ from airflow.operators.python_operator import PythonOperator
 from dotenv import load_dotenv
 from datetime import datetime
 
-sys.path.append('./dags/reports/trending')
+sys.path.append('./dags/reports/')
 
 from daily_trending_report import run_trending_report
 
