@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 sys.path.append('./dags/reports/')
+sys.path.append('./dags/reports/trending/')
 
 from daily_trending_report import run_trending_report
 
@@ -16,7 +17,7 @@ load_dotenv(f'{os.getcwd()}/.env')
 
 with DAG(
         dag_id="trending_report",
-        schedule_interval="25 1 * * *",  # Schedule every 15 minutes
+        schedule_interval="25 1 * * *",
         default_args={
             "owner": "airflow",
             "retries": 0,
