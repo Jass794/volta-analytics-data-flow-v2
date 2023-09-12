@@ -1,7 +1,5 @@
 import os
 import sys
-from pprint import pprint
-
 from datetime import timedelta
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
