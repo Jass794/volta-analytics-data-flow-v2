@@ -24,7 +24,7 @@ import requests
 from dotenv import load_dotenv
 from loguru import logger
 
-from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalApiModel, \
+from sync_analytics.data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalApiModel, \
     Location as PortalLocation, \
     Facility as PortalFacility, \
     Node as PortalNodeDetails, \
@@ -455,8 +455,7 @@ def sync_analytics_wrapper(environment):
     portal_api_token_header = {'Authorization': f"Bearer {os.getenv('PORTAL_ADMIN_API_TOKEN')}"}
     analytics_api_token_header = {'Authorization': f"Bearer {os.getenv('ANALYTICS_SYNC_PORTAL_API_TOKEN')}"}
     portal_api_token_header_v2 = {'Authorization': f"Bearer {os.getenv('PORTAL_ADMIN_ACCESS_KEY')}:{os.getenv('PORTAL_ADMIN_SECRET_TOKEN')}"}
-    print(portal_api_token_header)
-    post_status_to_admin_app(portal_api_token_header_v2, service_name, True, 'Analytics Sync Init')
+    # post_status_to_admin_app(portal_api_token_header_v2, service_name, True, 'Analytics Sync Init')
 
     utc_datetime = str(dt.datetime.utcnow().strftime('%Y%m%d_%H%M00'))
     log_file_name = '{}.txt'.format(utc_datetime)

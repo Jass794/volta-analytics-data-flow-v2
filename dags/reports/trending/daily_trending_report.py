@@ -1,8 +1,8 @@
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
-from dags.reports.utils.common import *
-from dags.reports.utils.trending import *
+from reports.utils.common import *
+from reports.utils.trending import *
 from loguru import logger
 import datetime as dt
 import notifiers
