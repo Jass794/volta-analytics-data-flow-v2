@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/dags/reports/trending/')
+sys.path.append('/dags/reports/')
 
 import os
 from datetime import timedelta
@@ -8,13 +8,13 @@ from airflow.operators.python_operator import PythonOperator
 from dotenv import load_dotenv
 from datetime import datetime
 
-from reports.trending.daily_trending_report import run_trending_report
+from reports.events.events_report import process_events_report
 
 load_dotenv(f'{os.getcwd()}/.env')
 
 with DAG(
-        dag_id="trending_report",
-        schedule_interval="25 1 * * *",
+        dag_id="events_report",
+        schedule_interval="35 3 * * *",
         default_args={
             "owner": "airflow",
             "retries": 0,
@@ -25,8 +25,8 @@ with DAG(
         max_active_runs=1
 ) as f:
     sync_analytics_execute = PythonOperator(
-        task_id="trending_report",
-        python_callable=run_trending_report,
+        task_id="events_report",
+        python_callable=process_events_report,
         op_args=[os.getenv('SERVER')],
         provide_context=True,
     )
