@@ -349,10 +349,9 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
             (harmonic_frame['harmonic_freq'].ge(harmonic_lf - tolerance)) &
             (harmonic_frame['harmonic_freq'].lt(harmonic_lf + tolerance))
             ].copy()
-
         # Group by time and choose max if multiple harmonics are found within a tolerance
         given_harmonic_frame.index = pd.to_datetime(given_harmonic_frame['time'])
-        given_harmonic_frame = given_harmonic_frame.drop(columns=['harmonic_freq', 'time', 'line_frequency'])
+        given_harmonic_frame = given_harmonic_frame[['harmonic_value']]
 
         # Create dates for data slicing
         st_slicing_date = scan_date - dt.timedelta(days=st_avg_days)

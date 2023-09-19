@@ -2,43 +2,22 @@ from email.mime.multipart import MIMEMultipart
 
 import pandas as pd
 
-from utils.harmonics import *
+from reports.utils.harmonics import *
 from email.mime.text import MIMEText
-from utils.common import *
+from reports.utils.common import *
 from loguru import logger
+from dotenv import load_dotenv
 import datetime as dt
 import notifiers
 import smtplib
 import sys
 import os
 
-# Get Secrets from Environment Variables
-api_token = str(os.getenv('ANALYTICS_FILE_PROCESSORS_API_TOKEN'))
-email_app_pass = str(os.getenv("GMAIL_APP_PASSWORD"))
+
 change_impace_threshold = 50
 
 
-# Email on Error in Log file
-def email_log_on_error(log_filepath):
-    # Read log file
-    with open(log_filepath, 'r') as f:
-        log_content = f.read()
-        # Close file
-        f.close()
-    # Check if ERROR in log
-    if 'ERROR' in log_content:
-        # Get utc datetime
-        utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
-        params = {
-            "attachments": [log_filepath],
-            "username": "notifications@voltainsite.com",
-            "password": email_app_pass,
-            "to": "analytics-data-flow-errors@voltainsite.com",
-            "subject": "Error - HAT Report",
-        }
-        notifier = notifiers.get_notifier("gmail")
-        notifier.notify(message="Log File attached!", **params)
-    return 0
+
 
 
 # Apply harmonic filter on hat report
@@ -102,7 +81,7 @@ def tolerance_harmonics_removal_v2(new_df, old_df):
 
 @logger.catch
 # HAT Report
-def hat_report(location_df, report_date, report_type):
+def hat_report(location_df, report_date, report_type, api_token):
     logger.info('{} HAT Report Initiated for {}'.format(report_type.title(), report_date))
     report_hat_frame = pd.DataFrame()
     # Hat Report type
@@ -201,7 +180,7 @@ def hat_report(location_df, report_date, report_type):
 
 @logger.catch
 # Email report
-def email_hat_report(processed_dict, hat_type):
+def email_hat_report(processed_dict, hat_type, email_app_pass):
     # If report message is empty, return
     if processed_dict['message'] == 'No Daily scans found':
         logger.error('No Daily scans found on {}'.format(processed_dict['report_date']))
@@ -277,21 +256,39 @@ def email_hat_report(processed_dict, hat_type):
     return 0
 
 
-if __name__ == "__main__":
-    # List all arguments
-    args = sys.argv
-    if len(args) < 1:
-        print("Please provide '-t Current/Voltage' for type")
-        sys.exit(1)
-    if '-t' in args:
-        report_type = args[args.index('-t') + 1]
-        if report_type not in ['Current', 'Voltage']:
-            print("Report type should be either 'Current' or 'Voltage'")
-            sys.exit(1)
+def generate_hat_report(report_type, env='staging', debug=False):
+    if env == 'production':
+        server = 'production'
     else:
-        print("-t not in args")
-        print("It should be either 'Current' or 'Voltage'")
-        sys.exit(1)
+        server = 'staging'
+
+    load_dotenv(f'{os.getcwd()}/.{server}.env')
+
+    # Get Secrets from Environment Variables
+    api_token = str(os.getenv('ANALYTICS_FILE_PROCESSORS_API_TOKEN'))
+    email_app_pass = str(os.getenv("GMAIL_APP_PASSWORD"))
+
+    # Email on Error in Log file
+    def email_log_on_error(log_filepath):
+        # Read log file
+        with open(log_filepath, 'r') as f:
+            log_content = f.read()
+            # Close file
+            f.close()
+        # Check if ERROR in log
+        if 'ERROR' in log_content:
+            # Get utc datetime
+            utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
+            params = {
+                "attachments": [log_filepath],
+                "username": "notifications@voltainsite.com",
+                "password": email_app_pass,
+                "to": "analytics-data-flow-errors@voltainsite.com",
+                "subject": "Error - HAT Report",
+            }
+            notifier = notifiers.get_notifier("gmail")
+            notifier.notify(message="Log File attached!", **params)
+        return 0
 
     # Get utc datetime
     utc_datetime = str(dt.datetime.utcnow().strftime('%Y%m%d_%H%M00'))
@@ -309,7 +306,7 @@ if __name__ == "__main__":
     logs_retention = '1 week'
 
     # If -d in args, then debug mode, no need to email on error
-    if '-d' in args:
+    if debug:
         process_logger = process_logger.add(
             log_dir_path + log_file_name, retention=logs_retention, enqueue=True,
             format="{time:YYYY-MM-DD HH:mm:ss!UTC} | {level} | {function}:{line} {message}"
@@ -321,7 +318,7 @@ if __name__ == "__main__":
             compression=email_log_on_error
         )
 
-    # Get Locations 
+    # Get Locations
     locations_df = get_node_df(api_token)
     if not locations_df.empty:
         # Filter locations where HAT Report needs to run
@@ -334,13 +331,35 @@ if __name__ == "__main__":
             (locations_df.node_configs.apply(lambda x: x['wc'] == 0)) &
             (locations_df.node_configs.apply(lambda x: x['eq_type'] not in ['dc']))
             ]
-        print(locations_df[locations_df['node_sn'] == 75110])
     else:
         process_logger.error('No locations found')
         sys.exit(1)
 
     # Get UTC date
     utc_date = str((dt.datetime.utcnow() - dt.timedelta(days=1)).strftime('%Y-%m-%d'))
-    hat_report_dict = hat_report(locations_df, utc_date, report_type.lower())
+    hat_report_dict = hat_report(locations_df, utc_date, report_type.lower(),api_token)
     # Email HAT Report
-    email_hat_report(hat_report_dict, report_type.title())
+    email_hat_report(hat_report_dict, report_type.title(), email_app_pass)
+
+
+if __name__ == "__main__":
+    # List all arguments
+    args = sys.argv
+    debug = False
+    if len(args) < 1:
+        print("Please provide '-t Current/Voltage' for type")
+        sys.exit(1)
+    if '-t' in args:
+        report_type = args[args.index('-t') + 1]
+        if report_type not in ['Current', 'Voltage']:
+            print("Report type should be either 'Current' or 'Voltage'")
+            sys.exit(1)
+    else:
+        print("-t not in args")
+        print("It should be either 'Current' or 'Voltage'")
+        sys.exit(1)
+    if '-d' in args:
+        debug=True
+
+    generate_hat_report(report_type,debug=debug)
+

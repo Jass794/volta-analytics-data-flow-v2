@@ -1,8 +1,12 @@
-import pandas as pd
+import json
 
-from utils.harmonics import *
-from utils.common import *
-from multiprocessing import Pool
+import pandas as pd
+import requests
+
+from reports.utils.harmonics import *
+from reports.utils.common import *
+from dotenv import load_dotenv
+from billiard.pool import Pool
 from functools import partial
 from loguru import logger
 import datetime as dt
@@ -10,38 +14,12 @@ import notifiers
 import sys
 import os
 
-# Get Secrets from Environment Variables
-api_token = str(os.getenv('ANALYTICS_FILE_PROCESSORS_API_TOKEN'))
-email_app_pass = str(os.getenv("GMAIL_APP_PASSWORD"))
 lt_data_days = 90
-
-
-# Email on Error in Log file
-def email_log_on_error(log_filepath):
-    # Read log file
-    with open(log_filepath, 'r') as f:
-        log_content = f.read()
-        # Close file
-        f.close()
-    # Check if ERROR in log
-    if 'ERROR' in log_content:
-        # Get utc datetime
-        utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
-        params = {
-            "attachments": [log_filepath],
-            "username": "notifications@voltainsite.com",
-            "password": email_app_pass,
-            "to": "analytics-data-flow-errors@voltainsite.com",
-            "subject": "Error - HAT Scan ETL",
-        }
-        notifier = notifiers.get_notifier("gmail")
-        notifier.notify(message="Log File attached!", **params)
-    return 0
 
 
 @logger.catch
 # HAT Scan for a location
-def hat_scan(location_dict, report_date, report_type):
+def hat_scan(location_dict, report_date, report_type, api_token):
     # Log Name for this location
     log_name = str(location_dict['node_sn']) + ' - ' + location_dict['location_name'] + ' - ' + location_dict['facility_name']
     logger.info('{} HAT Scan Initiated for {}'.format(report_type.title(), log_name))
@@ -173,21 +151,38 @@ def hat_scan(location_dict, report_date, report_type):
     return 0
 
 
-if __name__ == "__main__":
-    # List all arguments
-    args = sys.argv
-    if len(args) < 1:
-        print("Please provide '-t Current/Voltage' for type")
-        sys.exit(1)
-    if '-t' in args:
-        report_type = args[args.index('-t') + 1]
-        if report_type not in ['Current', 'Voltage']:
-            print("Report type should be either 'Current' or 'Voltage'")
-            sys.exit(1)
+def run_hat_scan(report_type, env='staging', debug=False, ):
+    if env == 'production':
+        server = 'production'
     else:
-        print("-t not in args")
-        print("It should be either 'Current' or 'Voltage'")
-        sys.exit(1)
+        server = 'staging'
+
+    load_dotenv(f'{os.getcwd()}/.{server}.env')
+    # Get Secrets from Environment Variables
+    api_token = str(os.getenv('ANALYTICS_FILE_PROCESSORS_API_TOKEN'))
+    email_app_pass = str(os.getenv("GMAIL_APP_PASSWORD"))
+
+    # Email on Error in Log file
+    def email_log_on_error(log_filepath):
+        # Read log file
+        with open(log_filepath, 'r') as f:
+            log_content = f.read()
+            # Close file
+            f.close()
+        # Check if ERROR in log
+        if 'ERROR' in log_content:
+            # Get utc datetime
+            utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
+            params = {
+                "attachments": [log_filepath],
+                "username": "notifications@voltainsite.com",
+                "password": email_app_pass,
+                "to": "analytics-data-flow-errors@voltainsite.com",
+                "subject": "Error - HAT Scan ETL",
+            }
+            notifier = notifiers.get_notifier("gmail")
+            notifier.notify(message="Log File attached!", **params)
+        return 0
 
     # Get utc datetime
     utc_datetime = str(dt.datetime.utcnow().strftime('%Y%m%d_%H%M00'))
@@ -205,7 +200,7 @@ if __name__ == "__main__":
     logs_retention = '1 week'
 
     # If -d in args, then debug mode, no need to email on error
-    if '-d' in args:
+    if debug:
         process_logger = process_logger.add(
             log_dir_path + log_file_name, retention=logs_retention, enqueue=True,
             format="{time:YYYY-MM-DD HH:mm:ss!UTC} | {level} | {function}:{line} {message}"
@@ -217,7 +212,7 @@ if __name__ == "__main__":
             compression=email_log_on_error
         )
 
-    # Get Locations 
+    # Get Locations
     locations_df = get_node_df(api_token)
     if not locations_df.empty:
         hat_scan_filter = '{}_hat_report_scan'.format(report_type.lower())
@@ -242,4 +237,30 @@ if __name__ == "__main__":
     utc_date = str((dt.datetime.utcnow() - dt.timedelta(days=1)).strftime('%Y-%m-%d'))
 
     with Pool(4) as pool:
-        status = pool.map(partial(hat_scan, report_date=utc_date, report_type=report_type.lower()), locations_records)
+        status = pool.map(partial(hat_scan, report_date=utc_date, report_type=report_type.lower(), api_token=api_token), locations_records)
+
+
+if __name__ == "__main__":
+    # List all arguments
+    args = sys.argv
+    debug = False
+    if len(args) < 1:
+        print("Please provide '-t Current/Voltage' for type")
+        sys.exit(1)
+    if '-t' in args:
+        report_type = args[args.index('-t') + 1]
+        if report_type not in ['Current', 'Voltage']:
+            print("Report type should be either 'Current' or 'Voltage'")
+            sys.exit(1)
+    else:
+        print("-t not in args")
+        print("It should be either 'Current' or 'Voltage'")
+        sys.exit(1)
+    if 'production' in args:
+        enviornment = 'production'
+    else:
+        enviornment = 'staging'
+    if '-d' in args:
+        debug = True
+
+    run_hat_scan(report_type, enviornment, debug)

@@ -13,6 +13,6 @@ ENV GITHUB_TOKEN=$GITHUB_TOKEN
 COPY requirements.txt .
 
 RUN /usr/local/bin/python -m pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip --no-cache-dir install -r requirements.txt
 
 
