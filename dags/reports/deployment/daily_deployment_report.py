@@ -3,61 +3,26 @@ from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
 
-from utils.common import *
-from utils.deployment import *
+from reports.utils.common import *
+from reports.utils.deployment import *
 from loguru import logger
 import datetime as dt
 import notifiers
 import smtplib
 import sys
 import os
-import boto3
-import io
-import math
-from statistics import mean
 import pandas as pd
 from multiprocessing import Pool
 import multiprocessing
-from itertools import repeat
 from functools import partial
 import numpy as np
-import time
 
-# load env file
-load_dotenv("production.env")
-
-# load env file
-load_dotenv("production.env")
-
-# Get Secrets from Environment Variables
-api_token = str(os.getenv('ANALYTICS_FILE_PROCESSORS_API_TOKEN'))
-email_app_pass = str(os.getenv("GMAIL_APP_PASSWORD"))
-
-
-# Email on Error in Log file
-def email_log_on_error(log_filepath):
-    # Read log file
-    with open(log_filepath, 'r') as f:
-        log_content = f.read()
-        # Close file
-        f.close()
-    # Check if ERROR in log
-    if 'ERROR' in log_content:
-        params = {
-            "attachments": [log_filepath],
-            "username": "notifications@voltainsite.com",
-            "password": email_app_pass,
-            "to": "analytics-data-flow-errors@voltainsite.com",
-            "subject": "Error - Deployment Report",
-        }
-        notifier = notifiers.get_notifier("gmail")
-        notifier.notify(message="Log File attached!", **params)
-    return 0
-
+WORK_CYCLE_LF_MIN = 30
+WORK_CYCLE_LF_MAX = 65
 
 @logger.catch
 # Email voltage imbalance report
-def email_deployment_report(processed_results):
+def email_deployment_report(processed_results,email_app_pass):
     logger.info('Emailing Deployment Report')
 
     report_date = dt.datetime.strptime(processed_results['report_date'], '%Y-%m-%d')
@@ -153,43 +118,31 @@ def email_deployment_report(processed_results):
 
 @logger.catch
 # Deployment Report
-def deployment_report(locations_df):
+def deployment_report(locations_df,api_token):
     # Generate utc report date
     report_date = (dt.datetime.utcnow() - dt.timedelta(days=1)).date()
     report_date = str(report_date.strftime('%Y-%m-%d'))
     # Loop through dates
     logger.info('Deployment Report Date: {}'.format(report_date))
 
-    voltage_imbalance_frame = pd.DataFrame(
-        columns=[
-            'customer_name', 'node_sn', 'location_name', 'facility_name', 'st_avg',
-            'absolute_threshold', 'location_node_id', 'facility_id', 'customer_id'
-        ]
-    )
-    not_centered_zero_frame = pd.DataFrame(
-        columns=[
-            'customer_name', 'facility_name', 'location_name', 'location_node_id', 'node_sn',
-            's3_location', 'file_timestamp', 'v_noise', 'i_noise', 'avg_voltage', 'avg_current'
-        ]
-    )
-
-    #locations_df = locations_df[locations_df['facility_name'] == 'Brookneal, VA']
-    #locations_df = locations_df[locations_df['node_sn'] == 21187]
     node_arr = locations_df.to_dict('records')
 
-    with Pool() as pool:
-        vi_records = pool.map(partial(process_vi_row,report_date = report_date),node_arr)
+    with Pool(multiprocessing.cpu_count() - 1) as pool:
+        vi_records = pool.map(partial(process_vi_row,api_token = api_token,report_date = report_date),node_arr)
         node_arr = pool.map(partial(get_recent_esa_waveform, api_token),node_arr)
         ncz_records = pool.map(get_center_of_waveform,node_arr)
         cm_records = pool.map(get_zero_crossings,node_arr)
+        missing_channel_records = pool.map(get_missing_channels,node_arr)
 
     vi_records = [x for x in vi_records if x is not None]
     ncz_records = [x for x in ncz_records if x is not None]
     cm_records = [x for x in cm_records if x is not None]
+    missing_channel_records = [x for x in missing_channel_records if x is not None]
 
     voltage_imbalance_frame = pd.DataFrame.from_records(vi_records)
     not_centered_zero_frame = pd.DataFrame.from_records(ncz_records)
     channel_mapping_frame = pd.DataFrame.from_records(cm_records)
+    missing_channel_frame = pd.DataFrame.from_records(missing_channel_records)
 
     if not voltage_imbalance_frame.empty:
         # Drop row where absolute change < Threshold
@@ -233,13 +186,22 @@ def deployment_report(locations_df):
         channel_mapping_frame['b_phase_deg'] = channel_mapping_frame['b_phase_deg'].astype(float).round(5)
         channel_mapping_frame['c_phase_deg'] = channel_mapping_frame['c_phase_deg'].astype(float).round(5)
 
+    if not missing_channel_frame.empty:
+        missing_channel_frame = missing_channel_frame[
+            (missing_channel_frame['missing_current_count'] > 0)|
+            (missing_channel_frame['missing_voltage_count'] > 0)
+        ]
+        missing_channel_frame = missing_channel_frame.sort_values(by=['missing_current_count','missing_voltage_count'],ascending=False)
+        missing_channel_frame = missing_channel_frame.reset_index(drop=True)
+
     # Result dict
     result_dict = {
         'email_time': str(dt.datetime.utcnow()),
         'report_date': report_date,
         'voltage_imbalance_report': voltage_imbalance_frame.to_dict(),
         'not_centered_zero_report': not_centered_zero_frame.to_dict(),
-        'channel_mapping_report': channel_mapping_frame.to_dict()
+        'channel_mapping_report': channel_mapping_frame.to_dict(),
+        'missing_channel_report': missing_channel_frame.to_dict()
     }
 
     # Insert data into staging and production
@@ -247,7 +209,75 @@ def deployment_report(locations_df):
     # prod_result = insert_deployment_report(result_dict, report_date, '/internal', api_token
     return staging_result
  
-def process_vi_row(row, report_date):
+def get_missing_channels(row):
+
+    if 'waveform' not in row:
+        return None
+    
+    node_sn = int(row['node_sn'])
+    location_name = str(row['location_name'])
+    facility_name = str(row['facility_name'])
+    facility_id = str(row['facility_id'])
+    customer_name = str(row['customer_name'])
+    customer_id = str(row['customer_id'])
+    eq_type = str(row['node_configs']['eq_type'])
+    eq_type_sub = str(row['node_configs']['eq_type_sub'])
+    i_noise = float(row['node_configs']['i_noise'])
+    v_noise = float(row['node_configs']['v_noise'])
+    location_node_id = str(row['location_node_id'])
+    file_timestamp = str(row['file_timestamp'])
+    s3_location = str(row['s3_location'])
+    
+    waveform = pd.DataFrame().from_dict(row['waveform'])
+    
+    ia_rms,ib_rms,ic_rms,va_rms,vb_rms,vc_rms = waveform[['ia','ib','ic','va','vb','vc']].pow(2.).mean().pow(1/2)
+
+    missing_current_count = 0
+    missing_voltage_count = 0
+
+    missing_channels = []
+
+    if ia_rms < i_noise:
+        missing_current_count = missing_current_count + 1
+        missing_channels.append('Ia')
+
+    if ib_rms < i_noise and eq_type != 'dc':
+        missing_current_count = missing_current_count + 1
+        missing_channels.append('Ib')
+
+    if ic_rms < i_noise and eq_type != 'dc':
+        missing_current_count = missing_current_count + 1
+        missing_channels.append('Ic')
+
+    if va_rms < v_noise:
+        missing_voltage_count = missing_voltage_count + 1
+        missing_channels.append('Va')
+    
+    if vb_rms < v_noise and eq_type_sub != 'v2' and eq_type_sub != 'v1' and eq_type != 'dc':
+        missing_voltage_count = missing_voltage_count + 1
+        missing_channels.append('Vb')
+
+    if vc_rms < v_noise and eq_type_sub != 'v1' and eq_type != 'dc':
+        missing_voltage_count = missing_voltage_count + 1
+        missing_channels.append('Vc')
+
+    missing_channels = ', '.join(missing_channels)
+
+    return_dict = {
+        'customer_name': customer_name,
+        'facility_name': facility_name,            
+        'location_name': location_name,
+        'location_node_id': location_node_id,
+        'node_sn': node_sn,
+        's3_location':s3_location,
+        'file_timestamp': file_timestamp,
+        'missing_current_count': missing_current_count,
+        'missing_voltage_count': missing_voltage_count,
+        'missing_channels': missing_channels
+    }
+    return return_dict
+
+def process_vi_row(api_token,row, report_date):
     node_sn = int(row['node_sn'])
     location_name = str(row['location_name'])
     facility_name = str(row['facility_name'])
@@ -283,8 +313,9 @@ def process_vi_row(row, report_date):
 def get_zero_crossings(row):
 
     eq_type = str(row['node_configs']['eq_type'])
+    eq_type_sub = str(row['node_configs']['eq_type_sub'])
 
-    if 'waveform' not in row or eq_type == 'dc':
+    if 'waveform' not in row or eq_type == 'dc' or eq_type_sub == 'v1' or eq_type_sub == 'v2':
         return None
 
     node_sn = int(row['node_sn'])
@@ -294,7 +325,6 @@ def get_zero_crossings(row):
     location_node_id = str(row['location_node_id'])
     file_timestamp = str(row['file_timestamp'])
     s3_location = str(row['s3_location'])
-    eq_type_sub = str(row['node_configs']['eq_type_sub'])
     channel_map = str(row['channel_map'])
     vfd_driven = bool(row['vfd_driven'])
     work_cycle = bool(row['work_cycle'])
@@ -304,6 +334,8 @@ def get_zero_crossings(row):
 
     waveform = row['waveform']
     waveform = pd.DataFrame().from_dict(waveform)
+
+    #calc moving avg
     waveform[['ia_moving','ib_moving','ic_moving','va_moving','vb_moving','vc_moving']] = waveform[['ia','ib','ic','va','vb','vc']].rolling(256).mean()
 
     waveform = waveform.dropna(thresh=8) #Drop first 255 rows where moving avg is na
@@ -321,12 +353,43 @@ def get_zero_crossings(row):
 
     # Phase operations
 
-    ia_avg_period = waveform.loc[waveform['ia_crossing'] > 0, 'time'].diff().dropna().mean()
-    va_avg_period = waveform.loc[waveform['va_crossing'] > 0, 'time'].diff().dropna().mean()
-    ib_avg_period = waveform.loc[waveform['ib_crossing'] > 0, 'time'].diff().dropna().mean()
-    vb_avg_period = waveform.loc[waveform['vb_crossing'] > 0, 'time'].diff().dropna().mean()
-    ic_avg_period = waveform.loc[waveform['ic_crossing'] > 0, 'time'].diff().dropna().mean()
-    vc_avg_period = waveform.loc[waveform['vc_crossing'] > 0, 'time'].diff().dropna().mean()
+    #If its a work cycle node, we need to find a section of usable data
+    #Determine if a section is within a frequency range and use the largest consecutive section
+    if work_cycle:
+        waveform['ia_frequency'] = waveform.loc[waveform['ia_crossing'] > 0, 'time'].diff().rdiv(1)
+        waveform['ib_frequency'] = waveform.loc[waveform['ib_crossing'] > 0, 'time'].diff().rdiv(1)
+        waveform['ic_frequency'] = waveform.loc[waveform['ic_crossing'] > 0, 'time'].diff().rdiv(1)
+        
+        waveform['ia_frequency'] = waveform['ia_frequency'].shift(-1).bfill()
+        waveform['ib_frequency'] = waveform['ib_frequency'].shift(-1).bfill()
+        waveform['ic_frequency'] = waveform['ic_frequency'].shift(-1).bfill()
+
+        #Finding the largest group of consecutive points within the frequency range
+        #and Zeroing/excluding the zero-crossing data for points outside of the largest group
+
+        a_valid = waveform['ia_frequency'].between(WORK_CYCLE_LF_MIN,WORK_CYCLE_LF_MAX)
+        a_groups = (~a_valid).cumsum()[a_valid]
+        if not a_groups.empty:
+            a_mask = (a_groups == waveform.groupby(a_groups).size().idxmax()).reindex(waveform.index,fill_value = False)
+            waveform[['ia_crossing','va_crossing']] = waveform[['ia_crossing','va_crossing']].mask(~a_mask,0)
+        else:
+            waveform[['ia_crossing','va_crossing']] = [0,0]
+
+        b_valid = waveform['ib_frequency'].between(WORK_CYCLE_LF_MIN,WORK_CYCLE_LF_MAX)
+        b_groups = (~b_valid).cumsum()[b_valid]
+        if not b_groups.empty:
+            b_mask = (b_groups == waveform.groupby(b_groups).size().idxmax()).reindex(waveform.index, fill_value=False)
+            waveform[['ib_crossing','vb_crossing']] = waveform[['ib_crossing','vb_crossing']].mask(~b_mask,0)
+        else:
+            waveform[['ib_crossing','vb_crossing']] = [0,0]
+
+        c_valid = waveform['ic_frequency'].between(WORK_CYCLE_LF_MIN,WORK_CYCLE_LF_MAX)
+        c_groups = (~c_valid).cumsum()[c_valid]
+        if not c_groups.empty:
+            c_mask = (c_groups == waveform.groupby(c_groups).size().idxmax()).reindex(waveform.index, fill_value=False)
+            waveform[['ic_crossing','vc_crossing']] = waveform[['ic_crossing','vc_crossing']].mask(~c_mask,0)
+        else:
+            waveform[['ic_crossing','vc_crossing']] = [0,0]
 
     ia_crossings = waveform.loc[waveform['ia_crossing'] > 0, 'time'].reset_index(drop=True)
     va_crossings = waveform.loc[waveform['va_crossing'] > 0, 'time'].reset_index(drop=True)
@@ -335,18 +398,17 @@ def get_zero_crossings(row):
     ic_crossings = waveform.loc[waveform['ic_crossing'] > 0, 'time'].reset_index(drop=True)
     vc_crossings = waveform.loc[waveform['vc_crossing'] > 0, 'time'].reset_index(drop=True)
 
-    #If the first current crossing happens before the first voltage crossing, drop it
-    if va_crossings.size and ia_crossings.size > 1 and ia_crossings.iloc[0] < va_crossings.iloc[0]:
-        ia_crossings = ia_crossings.iloc[1:]
-    if vb_crossings.size and ib_crossings.size > 1 and ib_crossings.iloc[0] < vb_crossings.iloc[0]:
-        ib_crossings = ib_crossings.iloc[1:]
-    if vc_crossings.size and ic_crossings.size > 1 and ic_crossings.iloc[0] < vc_crossings.iloc[0]:
-        ic_crossings = ic_crossings.iloc[1:]
+    ia_avg_period = ia_crossings.diff().dropna().mean()
+    va_avg_period = va_crossings.diff().dropna().mean() 
+    ib_avg_period = ib_crossings.diff().dropna().mean() 
+    vb_avg_period = vb_crossings.diff().dropna().mean() 
+    ic_avg_period = ic_crossings.diff().dropna().mean() 
+    vc_avg_period = vc_crossings.diff().dropna().mean() 
 
     if vfd_driven or starter == 'VFD':
-        a_crossings = ia_crossings.apply(lambda x: x - va_crossings[va_crossings < x].max())
-        b_crossings = ib_crossings.apply(lambda x: x - vb_crossings[vb_crossings < x].max())
-        c_crossings = ic_crossings.apply(lambda x: x - vc_crossings[vc_crossings < x].max())
+        a_crossings = ia_crossings.apply(lambda x: (x - va_crossings).abs().min())
+        b_crossings = ib_crossings.apply(lambda x: (x - vb_crossings).abs().min())
+        c_crossings = ic_crossings.apply(lambda x: (x - vc_crossings).abs().min())
     else:
         a_crossings = ia_crossings - va_crossings
         b_crossings = ib_crossings - vb_crossings
@@ -367,54 +429,8 @@ def get_zero_crossings(row):
     flag_b = any(b_crossings > ib_avg_period) or any(b_crossings < 0)
     flag_c = any(c_crossings > ic_avg_period) or any(c_crossings < 0)
 
-    if eq_type_sub == 'v2':
-        ib_avg_period = 0.0
-        vb_avg_period = 0.0
-        b_avg_crossings_modib = 0.0
-        b_avg_crossings_modvb = 0.0
-        b_phase_deg = 0.0
-        flag_b = False
-
-    if eq_type_sub == 'v1':
-        ib_avg_period = 0.0
-        vb_avg_period = 0.0
-        b_avg_crossings_modib = 0.0
-        b_avg_crossings_modvb = 0.0
-        b_phase_deg = 0.0
-        flag_b = False
-        
-        ic_avg_period = 0.0
-        vc_avg_period = 0.0
-        c_avg_crossings_modic = 0.0
-        c_avg_crossings_modvc = 0.0
-        c_phase_deg = 0.0
-        flag_c = False
-
-    # print(node_sn)
-    # print(waveform)
-    # print(row['file_timestamp'])
-
-    # print(ia_avg_period)
-    # print(waveform.loc[waveform['ia_crossing'] > 0])
-    # print(a_crossings)
-    # print(a_crossings % ia_avg_period)
-    # print(a_avg_crossings_modia)
-
-    # print(ib_avg_period)
-    # print(waveform.loc[waveform['ib_crossing'] > 0])
-    # print(b_crossings)
-    # print(b_crossings % ib_avg_period)
-    # print(b_avg_crossings_modib)
-
-    # print(ic_avg_period)
-    # print(waveform.loc[waveform['ic_crossing'] > 0])
-    # print(c_crossings)
-    # print(c_crossings % ic_avg_period)
-    # print(c_avg_crossings_modic)
-
-    # print(flag_a)
-    # print(flag_b)
-    # print(flag_c)
+    #Catch any possible Nans so that report can generate w/o errors
+    #May occur if a normal node has a waveform/phase that doesnt contain a zero crossing
     ia_avg_period = nan_to_neg_one(ia_avg_period)
     ib_avg_period = nan_to_neg_one(ib_avg_period)
     ic_avg_period = nan_to_neg_one(ic_avg_period)
@@ -435,7 +451,7 @@ def get_zero_crossings(row):
         'file_timestamp': file_timestamp,
         'channel_map': channel_map,
         'work_cycle': work_cycle,
-        'vfd_driven': vfd_driven,
+        'vfd_driven': vfd_driven | (starter == 'VFD'),
         'ia_avg_period': ia_avg_period,
         'ib_avg_period': ib_avg_period,
         'ic_avg_period': ic_avg_period,
@@ -555,7 +571,33 @@ def insert_deployment_report(report_content, report_date, server, analytics_api_
         raise Exception('Error Inserting to {}: {}'.format(server_type, response.status_code))
     return report_content
 
-if __name__ == "__main__":
+def run_deployment_report():
+    # load env file
+    load_dotenv("production.env")
+
+    # Get Secrets from Environment Variables
+    api_token = str(os.getenv('ANALYTICS_FILE_PROCESSORS_API_TOKEN'))
+    email_app_pass = str(os.getenv("GMAIL_APP_PASSWORD"))
+
+    # Email on Error in Log file
+    def email_log_on_error(log_filepath):
+        # Read log file
+        with open(log_filepath, 'r') as f:
+            log_content = f.read()
+            # Close file
+            f.close()
+        # Check if ERROR in log
+        if 'ERROR' in log_content:
+            params = {
+                "attachments": [log_filepath],
+                "username": "notifications@voltainsite.com",
+                "password": email_app_pass,
+                "to": "analytics-data-flow-errors@voltainsite.com",
+                "subject": "Error - Deployment Report",
+            }
+            notifier = notifiers.get_notifier("gmail")
+            notifier.notify(message="Log File attached!", **params)
+        return 0
     # Get utc datetime
     utc_datetime = str(dt.datetime.utcnow().strftime('%Y%m%d_%H%M00'))
     # Get log file name
@@ -592,17 +634,20 @@ if __name__ == "__main__":
     locations_df = get_node_df(api_token)
 
     if not locations_df.empty:
-        # Filter locations where Events Report needs to run
+        # Filter locations where Deployment Report needs to run
         locations_df = locations_df[
             (locations_df.node_details.apply(lambda x: x['deploymentIssue'] == False)) &
             (locations_df.node_details.apply(lambda x: x['currentDeploymentStatus'] == 'Deployed'))
             ]
         # locations_df = locations_df[locations_df['trending_report_scan'] == True]
 
-        result_dict = deployment_report(locations_df)
+        result_dict = deployment_report(locations_df,api_token)
         logger.success('Deployment Report Completed')
         # Email deployment Report
-        #email_deployment_report(result_dict)
+        email_deployment_report(result_dict,email_app_pass)
     else:
         process_logger.error('No locations found')
         sys.exit(1)
+
+if __name__ == "__main__":
+    run_deployment_report()

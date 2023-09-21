@@ -7,4 +7,5 @@ python-dotenv~=1.0.0
 pandas==2.0.3
 requests==2.31.0
 billiard==4.1.0
+boto3==1.20.46
 git+https://${GITHUB_TOKEN}@github.com/Jass794/volta_analytics_data_models.git@v1
