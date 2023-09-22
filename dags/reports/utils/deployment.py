@@ -14,6 +14,7 @@ LT_AVG_DAYS = 30
 ST_AVG_DAYS = 5
 NEW_TRENDING_BACK_DAYS = 2
 
+
 # Get trending report data from analytics API
 def get_trending_df(analytics_api_token, location_node_id, report_date):
     # Create start and end dates
@@ -45,7 +46,7 @@ def get_trending_df(analytics_api_token, location_node_id, report_date):
         'voltage_thd_ll', 'current_thd'
     ]]
     # Parse string to datetime
-    trending_df['time'] = pd.to_datetime(trending_df['time'], format='%Y-%m-%dT%H:%M:%S%z')
+    trending_df['time'] = pd.to_datetime(trending_df['time'], format='%Y-%m-%d %H:%M:%S%z')
     # Order by time ascending and reset index
     trending_df = trending_df.sort_values(by='time').reset_index(drop=True)
     # If date of most recent time is not the same as end date, return empty dataframe
@@ -55,20 +56,20 @@ def get_trending_df(analytics_api_token, location_node_id, report_date):
     trending_df = trending_df.fillna(0)
     # Round all some columns to 2 decimal places
     trending_df[[
-        'voltage', 'voltage_ll', 'current', 'voltage_imbalance', 'voltage_imbalance_ll', 
+        'voltage', 'voltage_ll', 'current', 'voltage_imbalance', 'voltage_imbalance_ll',
         'current_imbalance', 'voltage_thd_ll', 'current_thd'
     ]] = trending_df[[
-        'voltage', 'voltage_ll', 'current', 'voltage_imbalance', 'voltage_imbalance_ll', 
+        'voltage', 'voltage_ll', 'current', 'voltage_imbalance', 'voltage_imbalance_ll',
         'current_imbalance', 'voltage_thd_ll', 'current_thd'
     ]].round(2)
     return trending_df
 
 
-#Process nodes with absolute voltage imbalance L-L > 5% (No DC, V1, or V2)
-def process_voltage_imbalance_frame(trending_df,location_details):
+# Process nodes with absolute voltage imbalance L-L > 5% (No DC, V1, or V2)
+def process_voltage_imbalance_frame(trending_df, location_details):
     if trending_df is None or 'voltage_imbalance_ll' not in trending_df.keys():
         return None
-    
+
     ABSOLUTE_VOLTAGE_IMBALANCE_LL_THRESHOLD = 5
 
     processed_dict = []
@@ -78,21 +79,22 @@ def process_voltage_imbalance_frame(trending_df,location_details):
         st_avg = trending_df['voltage_imbalance_ll'].iloc[st_avg_days:].mean()
 
         calcs = {
-                'facility_id': location_details['facility_id'],
-                'customer_id': location_details['customer_id'],
-                'node_sn': location_details['node_sn'],
-                'customer_name': location_details['customer_name'],
-                'location_name': location_details['location_name'],
-                'facility_name': location_details['facility_name'],
-                'st_avg': st_avg,
-                'absolute_threshold': ABSOLUTE_VOLTAGE_IMBALANCE_LL_THRESHOLD,
-                'location_node_id': location_details['location_node_id']
-            }
+            'facility_id': location_details['facility_id'],
+            'customer_id': location_details['customer_id'],
+            'node_sn': location_details['node_sn'],
+            'customer_name': location_details['customer_name'],
+            'location_name': location_details['location_name'],
+            'facility_name': location_details['facility_name'],
+            'st_avg': st_avg,
+            'absolute_threshold': ABSOLUTE_VOLTAGE_IMBALANCE_LL_THRESHOLD,
+            'location_node_id': location_details['location_node_id']
+        }
         processed_dict.append(calcs)
 
     return calcs
 
-def get_recent_esa_waveform(api_token,row):
+
+def get_recent_esa_waveform(row, api_token):
     """
     Gets the most recent ON esa file for AC equipment
     Input: API token and a Row from locations_df containing information about a node
@@ -117,17 +119,17 @@ def get_recent_esa_waveform(api_token,row):
 
     if eq_type == 'dc':
         return row
-    
+
     product_type = 'SEL' if eq_type == '---' else 'Node'
-    
-    logger.info('{} Getting ESA File for Node: {}'.format(multiprocessing.current_process().name,node_sn))
+
+    logger.info('{} Getting ESA File for Node: {}'.format(multiprocessing.current_process().name, node_sn))
 
     url = "https://analytics-ecs-api.voltaenergy.ca/internal/staging/reports/deployment/recent_esa_ON_file/"
-    #url = "http://localhost:8000/internal/staging/reports/deployment/recent_esa_ON_file/"
+    # url = "http://localhost:8000/internal/staging/reports/deployment/recent_esa_ON_file/"
     headers = {'Authorization': 'Bearer {}'.format(api_token)}
     query_params = {
         'location_node_id': location_node_id,
-        'product_type':product_type
+        'product_type': product_type
     }
     response = requests.get(url=url, params=query_params, headers=headers)
     response.raise_for_status()
@@ -157,7 +159,7 @@ def get_recent_esa_waveform(api_token,row):
         )
         search_bucket = s3_location.split('/')[0]
         esa_file_key = '/'.join(s3_location.split('/')[1:])
-            # Read ESA from S3
+        # Read ESA from S3
         esa_object = s3_assumed_client.get_object(Bucket=search_bucket, Key=esa_file_key)
         esa_contents = io.BytesIO(esa_object['Body'].read())
 
@@ -185,33 +187,33 @@ def get_recent_esa_waveform(api_token,row):
             ib = esa_data['Ib'].to_numpy()
             ic = esa_data['Ic'].to_numpy()
             time = esa_data['time (sec)'].to_numpy()
-       
 
         waveform = {
             'time': time,
-            'ia':ia,
-            'ib':ib,
-            'ic':ic,
-            'va':va,
-            'vb':vb,
-            'vc':vc
+            'ia': ia,
+            'ib': ib,
+            'ic': ic,
+            'va': va,
+            'vb': vb,
+            'vc': vc
         }
 
         row['waveform'] = waveform
         row['file_timestamp'] = file_timestamp
-        row['s3_location'] =  s3_location
+        row['s3_location'] = s3_location
         row['channel_map'] = channel_map
 
     elif response.status_code == 204:
-        #No content
+        # No content
         return row
     else:
         # Raise error
         raise Exception('Error getting recent esa on file: {}'.format(response.status_code))
-    
+
     return row
 
-def nan_to_neg_one(x:float):
+
+def nan_to_neg_one(x: float):
     if math.isnan(x):
         return -1.0
     else:
