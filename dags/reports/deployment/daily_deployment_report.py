@@ -30,6 +30,9 @@ def email_deployment_report(processed_results, email_app_pass):
 
     voltage_imbalance_frame = pd.DataFrame.from_dict(processed_results['voltage_imbalance_report'])
     not_centered_zero_frame = pd.DataFrame.from_dict(processed_results['not_centered_zero_report'])
+    channel_mapping_frame = pd.DataFrame.from_dict(processed_results['channel_mapping_report'])
+    missing_channel_frame = pd.DataFrame.from_dict(processed_results['missing_channel_report'])
+
     # Only keep required columns for email
 
     email_columns = [
@@ -69,6 +72,40 @@ def email_deployment_report(processed_results, email_app_pass):
         }
     )
 
+    email_columns = [
+        'customer_name', 'node_sn', 'location_name', 'facility_name',
+        'a_phase_deg','b_phase_deg','c_phase_deg'
+    ]
+    channel_mapping_frame = channel_mapping_frame[email_columns]
+    # Rename columns for email
+    channel_mapping_frame = channel_mapping_frame.rename(
+        columns={
+            'customer_name': 'Customer',
+            'node_sn': 'Node Serial',
+            'location_name': 'Equipment',
+            'facility_name': 'Facility',
+            'a_phase_deg': 'θA',
+            'b_phase_deg': 'θB',
+            'c_phase_deg': 'θC'
+        }
+    )
+
+    email_columns = [
+        'customer_name', 'node_sn', 'location_name', 'facility_name',
+        'missing_channels'
+    ]
+    missing_channel_frame = missing_channel_frame[email_columns]
+    # Rename columns for email
+    missing_channel_frame = missing_channel_frame.rename(
+        columns={
+            'customer_name': 'Customer',
+            'node_sn': 'Node Serial',
+            'location_name': 'Equipment',
+            'facility_name': 'Facility',
+            'missing_channels': 'Missing Channels'
+        }
+    )
+
     # SEND EMAIL
     sender_email = 'notifications@voltainsite.com'
     if '-d' in sys.argv:
@@ -94,11 +131,20 @@ def email_deployment_report(processed_results, email_app_pass):
                 <b>Not Centered on Zero</b><br>
                 {1}
                 <p>
+                <p>
+                <b>Channel Mapping</b><br>
+                {2}
+                <p>
+                <p>
+                <b>Missing Channels</b><br>
+                <p>
             </body>
         </html>
     """.format(
         voltage_imbalance_frame.to_html(index=False),
-        not_centered_zero_frame.to_html(index=False)
+        not_centered_zero_frame.to_html(index=False),
+        channel_mapping_frame.to_html(index=False),
+        missing_channel_frame.to_html(index=False)
     )
 
     message = MIMEMultipart()
