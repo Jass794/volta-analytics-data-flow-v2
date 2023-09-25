@@ -271,7 +271,7 @@ def deployment_report(locations_df, api_token):
 
     # Insert data into staging and production
     staging_result = insert_deployment_report(result_dict, report_date, '/internal/staging', api_token)
-    # prod_result = insert_deployment_report(result_dict, report_date, '/internal', api_token
+    prod_result = insert_deployment_report(result_dict, report_date, '/internal', api_token)
     return staging_result
 
 
