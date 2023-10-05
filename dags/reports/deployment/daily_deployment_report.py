@@ -292,6 +292,8 @@ def get_missing_channels(row):
     location_node_id = str(row['location_node_id'])
     file_timestamp = str(row['file_timestamp'])
     s3_location = str(row['s3_location'])
+    np_voltage = int(row['np_voltage'])
+    np_current = int(row['np_current'])
 
     waveform = pd.DataFrame().from_dict(row['waveform'])
 
@@ -302,27 +304,27 @@ def get_missing_channels(row):
 
     missing_channels = []
 
-    if ia_rms < i_noise:
+    if ia_rms < (np_current / 10):
         missing_current_count = missing_current_count + 1
         missing_channels.append('Ia')
 
-    if ib_rms < i_noise and eq_type != 'dc':
+    if ib_rms < (np_current / 10) and eq_type != 'dc':
         missing_current_count = missing_current_count + 1
         missing_channels.append('Ib')
 
-    if ic_rms < i_noise and eq_type != 'dc':
+    if ic_rms < (np_current / 10) and eq_type != 'dc':
         missing_current_count = missing_current_count + 1
         missing_channels.append('Ic')
 
-    if va_rms < v_noise:
+    if va_rms < (np_voltage / 10):
         missing_voltage_count = missing_voltage_count + 1
         missing_channels.append('Va')
 
-    if vb_rms < v_noise and eq_type_sub != 'v2' and eq_type_sub != 'v1' and eq_type != 'dc':
+    if vb_rms < (np_voltage / 10) and eq_type_sub != 'v2' and eq_type_sub != 'v1' and eq_type != 'dc':
         missing_voltage_count = missing_voltage_count + 1
         missing_channels.append('Vb')
 
-    if vc_rms < v_noise and eq_type_sub != 'v1' and eq_type != 'dc':
+    if vc_rms < (np_voltage / 10) and eq_type_sub != 'v1' and eq_type != 'dc':
         missing_voltage_count = missing_voltage_count + 1
         missing_channels.append('Vc')
 
