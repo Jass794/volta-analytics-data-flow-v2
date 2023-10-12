@@ -8,9 +8,39 @@ from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
+from pydantic import BaseModel
+
+
+class FaultLibraryAlertFlags(BaseModel):
+    current_thd_alert: Optional[bool] = False
+    undervoltage_alert: Optional[bool] = False
+    distribution_ground_fault_alert: Optional[bool] = False
+    motor_failure: Optional[bool] = False
+    overvoltage_alert: Optional[bool] = False
+    sel_alarms_trip_count_alert: Optional[bool] = False
+    v_over_i_change: Optional[bool] = False
+    high_event_count_alert: Optional[bool] = False
+    overcurrent_alert: Optional[bool] = False
+    multiple_start_counts_fault: Optional[bool] = False
+    sel_max_voltage_imbalance_alert: Optional[bool] = False
+    i_1_ph: Optional[bool] = False
+    nema_start_limit_cross_alert: Optional[bool] = False
+    current_imbalance_alert: Optional[bool] = False
+    load_imbalance_alert: Optional[bool] = False
+    power_drop_fault: Optional[bool] = False
+    sel_voltage_imbalance_alert: Optional[bool] = False
+    voltage_thd_alert: Optional[bool] = False
+    sel_current_imbalance_alert: Optional[bool] = False
+    sel_overcurrent_alert: Optional[bool] = False
+    loss_of_phase_fault: Optional[bool] = False
+    sel_max_current_imbalance_alert: Optional[bool] = False
+    voltage_imbalance_alert: Optional[bool] = False
+    sel_undervoltage_alert: Optional[bool] = False
+    sel_overvoltage_alert: Optional[bool] = False
+
 
 # Portal response
-class Node(BaseModel):
+class NodeDetails(BaseModel):
     activeIa: bool
     activeIb: bool
     activeIc: bool
@@ -65,10 +95,10 @@ class NodeConfigs(BaseModel):
     np_current: float = 0.1
     np_frequency: float = 0.1
     np_hp: float = 0.1
-    np_running_speed: float = 0
-    np_poles: float = 0
-    np_rotor_bars: float = 0
-    np_stator_slots: float = 0
+    np_running_speed: float = 0.1
+    np_poles: float = 0.1
+    np_rotor_bars: float = 0.1
+    np_stator_slots: float = 0.1
     wc: float = 0
     eq_type: str = 'none'
     eq_type_sub: str = 'none'
@@ -118,7 +148,7 @@ class Location(BaseModel):
     loadApplication: str
     locationNodeIds: dict
     name: str
-    nodes: List[Node]
+    nodes: List[NodeDetails]
     nodeSerialNumber: str
     notifyMissedData: bool
     npCurrent: Any
@@ -131,6 +161,7 @@ class Location(BaseModel):
     starter: str
     timezone: str
     voltageTapLocation: str
+    faultLibraryAlertFlags: FaultLibraryAlertFlags
 
 
 # Portal response
@@ -170,16 +201,15 @@ class PortfolioV2Model(BaseModel):
     location_timezone: str
     data_start_epoch: int
     equipment_start_epoch: int
-    vfd_driven: bool
     work_cycle: bool
     np_voltage: float
     np_current: float
     np_frequency: float
     np_hp: Optional[float] = None
-    np_rpm: Optional[int] = None
-    np_poles: Optional[int] = None
-    np_rotor_bars: Optional[int] = None
-    np_stator_slots: Optional[int] = None
+    np_rpm: Optional[float] = None
+    np_poles: Optional[float] = None
+    np_rotor_bars: Optional[float] = None
+    np_stator_slots: Optional[float] = None
     belt_frequency_scan: bool
     belt_frequencies: Optional[list] = None
     gearbox_frequency_scan: bool
@@ -260,16 +290,15 @@ class PortfolioV2(Base):
     location_timezone = Column(VARCHAR, primary_key=False, nullable=False)
     data_start_epoch = Column(INTEGER, primary_key=False, nullable=False)
     equipment_start_epoch = Column(INTEGER, primary_key=False, nullable=False)
-    vfd_driven = Column(BOOLEAN, primary_key=False, nullable=False)
     work_cycle = Column(BOOLEAN, primary_key=False, nullable=False)
     np_voltage = Column(DOUBLE_PRECISION, primary_key=False, nullable=False)
     np_current = Column(DOUBLE_PRECISION, primary_key=False, nullable=False)
     np_frequency = Column(DOUBLE_PRECISION, primary_key=False, nullable=False)
     np_hp = Column(DOUBLE_PRECISION, primary_key=False, nullable=True)
-    np_rpm = Column(INTEGER, primary_key=False, nullable=True)
-    np_poles = Column(INTEGER, primary_key=False, nullable=True)
-    np_rotor_bars = Column(INTEGER, primary_key=False, nullable=True)
-    np_stator_slots = Column(INTEGER, primary_key=False, nullable=True)
+    np_rpm = Column(Float, primary_key=False, nullable=True)
+    np_poles = Column(Float, primary_key=False, nullable=True)
+    np_rotor_bars = Column(Float, primary_key=False, nullable=True)
+    np_stator_slots = Column(Float, primary_key=False, nullable=True)
     belt_frequency_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
     belt_frequencies = Column(ARRAY(Float), primary_key=False, nullable=True, default=[])
     gearbox_frequency_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
@@ -342,16 +371,15 @@ class PortfolioModelSyncAnalytics(BaseModel):
     location_timezone: str
     data_start_epoch: int
     equipment_start_epoch: int
-    vfd_driven: bool
     work_cycle: bool
     np_voltage: float
     np_current: float
     np_frequency: float
     np_hp: Optional[float] = None
-    np_rpm: Optional[int] = None
-    np_poles: Optional[int] = None
-    np_rotor_bars: Optional[int] = None
-    np_stator_slots: Optional[int] = None
+    np_rpm: Optional[float] = None
+    np_poles: Optional[float] = None
+    np_rotor_bars: Optional[float] = None
+    np_stator_slots: Optional[float] = None
     # belt_frequency_scan: bool
     # belt_frequencies: Optional[list] = None
     # gearbox_frequency_scan: bool
@@ -407,3 +435,4 @@ class PortfolioModelSyncAnalytics(BaseModel):
     pause_notifications: Optional[bool] = None
     product_type: Optional[str] = None
     under_voltage_threshold: Optional[float] = None
+    alert_library_flags: Optional[FaultLibraryAlertFlags] = None

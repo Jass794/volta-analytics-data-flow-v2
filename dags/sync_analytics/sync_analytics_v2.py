@@ -24,10 +24,10 @@ import requests
 from dotenv import load_dotenv
 from loguru import logger
 
-from sync_analytics.data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalApiModel, \
+from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalApiModel, \
     Location as PortalLocation, \
     Facility as PortalFacility, \
-    Node as PortalNodeDetails, \
+    NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
 
@@ -40,30 +40,6 @@ def remove_nan_null(value):
         return value
 
 
-# Email on Error in Log file
-def email_log_on_error(log_filepath):
-    utc_minutes = int(dt.datetime.now(pytz.utc).strftime('%M'))
-    # Notify of Error every 15 mins
-    if utc_minutes % 15 == 0:
-        # Read log file
-        with open(log_filepath, 'r') as f:
-            log_content = f.read()
-            # Close file
-            f.close()
-        # Check if ERROR in log
-        if 'ERROR' in log_content:
-            # Get utc datetime
-            utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
-            params = {
-                "attachments": [log_filepath],
-                "username": "notifications@voltainsite.com",
-                "password": os.getenv('GMAIL_APP_PASSWORD'),
-                "to": "analytics-data-flow-errors@voltainsite.com",
-                "subject": "[{}] Error Syncing Analytics - {}".format(server.title(), utc_datetime_email),
-            }
-            notifier = notifiers.get_notifier("gmail")
-            notifier.notify(message="Log File attached!".format(server.title()), **params)
-    return 0
 
 
 @logger.catch
@@ -135,7 +111,7 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
                                      portal_location: PortalLocation,
                                      portal_node_configs: AnalyticsNodeConfigs,
                                      portal_location_node_id: str,
-                                     harmonics_values, ) -> PortfolioModelSyncAnalytics:
+                                     harmonics_values) -> PortfolioModelSyncAnalytics:
     np_voltage = portal_node_configs.np_voltage
     np_current = portal_node_configs.np_current
     np_hp = portal_node_configs.np_hp
@@ -172,7 +148,6 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         location_timezone=portal_location.timezone,
         data_start_epoch=portal_location.equipmentStartTimestamp,
         equipment_start_epoch=portal_location.equipmentStartTimestamp,
-        vfd_driven=portal_location.starter == 'VFD',
         work_cycle=bool(portal_node_configs.wc),
         np_voltage=np_voltage,
         np_current=np_current,
@@ -226,7 +201,8 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         over_voltage_threshold=portal_node_details.overVoltageThreshold,
         pause_notifications=portal_node_details.pauseNotifications,
         product_type=portal_node_details.type,
-        under_voltage_threshold=portal_node_details.underVoltageThreshold)
+        under_voltage_threshold=portal_node_details.underVoltageThreshold,
+        alert_library_flags=portal_location.faultLibraryAlertFlags)
 
     return analytics_location
 
@@ -309,25 +285,11 @@ def insert_to_analytics_archive(equipment_dict, server_path, analytics_api_token
     return status
 
 
-def post_status_to_admin_app(api_token_header, service_name, is_running: bool, logs):
-    url = f'https://portal.voltastaging.com/api/v2/servicecenter/analytics_data_flow/{service_name}'
-    payload = {
-        "isRunning": is_running,
-        "logEntry": logs,
-        "serviceName": service_name,
-    }
-    response = requests.post(url, json=payload, headers=api_token_header)
-
-    response.raise_for_status()
-    if response.status_code == 200:
-        return 0
-
-
 @logger.catch
 # Delete data from analytics
 def delete_from_analytics(decommissioned_location_node_id, server_path, analytics_api_token):
     # Create URL, headers and query params
-    url = 'https://analytics-ecs-api.voltaenergy.ca/internal{}/crud/v2/portfolio/{}/'.format(server_path, decommissioned_location_node_id)
+    url = 'https://analytics-ecs-api.voltaenergy.ca/internal{}/v2/crud/portfolio/{}/'.format(server_path, decommissioned_location_node_id)
     # Get request session from helper
     response = requests.delete(url, headers=analytics_api_token)
     response.raise_for_status()
@@ -357,26 +319,28 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
             for portal_location in portal_facility.locations:
                 # iterate over all the location_node_id for selected location includes node and sub-node
                 for portal_location_node_id, node_details in zip(portal_location.locationNodeIds, portal_location.nodes):
-
+                    # Create a location name For logs
                     location_full_name = f"SN: {portal_location.locationNodeIds[portal_location_node_id]} - {portal_location.displayName} - {portal_facility.name} - {portal_customer.name}"
                     logger.info(f"Processing {location_full_name} {locations_count}")
+                    # Ignore the subNodes
                     if node_details.type == 'subNode':
                         logger.warning(f"Skipped SubNode {location_full_name} {locations_count}")
                         continue
                     locations_count = locations_count + 1
-                    logger.debug(f"Fetching Node Configs for {location_full_name}")
-                    # get the node configs from the latest data file
-                    node_configs = get_latest_datafile(portal_location_node_id, server_path, analytics_api_token_header)
+                    # add to try block to if it fails to get node configs location not get deleted
+                    try:
+                        # get the node configs from the latest data file
+                        node_configs = get_latest_datafile(portal_location_node_id, server_path, analytics_api_token_header)
 
-                    if node_details.currentDeploymentStatus in ['Pre-Deployment', 'Deployed']:
-                        if node_configs is None and node_details.type != 'SEL':
-                            logger.info('.....Calling Node config for headers because data file configs are null')
-                            # Get node configs from Portal API
-                            try:
+                        if node_details.currentDeploymentStatus in ['Pre-Deployment', 'Deployed']:
+                            if node_configs is None and node_details.type != 'SEL':
+                                logger.info('.....Calling Node config for headers because data file configs are null')
+                                # Get node configs from Portal API
                                 node_configs = get_node_configs(portal_location.locationNodeIds[portal_location_node_id], portal_api_token_header)
-                            except Exception as e:
-                                logger.warning('Failed to fetch node configs from Portal API: {}'.format(str(e)))
-                                node_configs = None
+
+                    except Exception as e:
+                        logger.warning('Failed to fetch node configs from: {}'.format(str(e)))
+                        node_configs = None
                     # Create pydantic node configs model
                     node_configs = AnalyticsNodeConfigs(**node_configs) if node_configs else AnalyticsNodeConfigs()
                     # Create location according to the analytics location
@@ -395,7 +359,7 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
                         updated_values = []
                         # Here we are finding the differences between the old data and updated data
                         for analytics_location in analytics_portfolio:
-                            if portal_analytics_mapped.location_node_id == analytics_location.location_node_id:
+                            if portal_analytics_mapped.node_sn == analytics_location.node_sn:
                                 analytics_location_dict = analytics_location.dict()
                                 for key, value in portal_analytics_mapped.dict().items():
                                     if value != analytics_location_dict[key]:
@@ -418,14 +382,15 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
                         logger.success('.....{} - {} - {}'.format(server, insert_status, portal_analytics_mapped.node_sn))
     logger.info(f"{len(location_change_list)} location updated/added....")
     # get the updated locations
-    analytics_portfolio = (server_path, analytics_api_token_header)
+    analytics_portfolio = get_analytics_portfolio(server_path, analytics_api_token_header)
     # check if there are location to prevent unnecessary deletion
     delete_locations_list = []
     if portal_mapped_locations:
         # Create a list of locations to delete from Analytics
         delete_locations_list = [location for location in analytics_portfolio if location not in portal_mapped_locations]
         # added a filter to stop accidental deletion of location
-        if len(delete_locations_list) < 30:
+        print(len(delete_locations_list))
+        if len(delete_locations_list) < 20:
             for location in delete_locations_list:
                 # delete the locations from analytics
                 status = delete_from_analytics(location.location_node_id, server_path, analytics_api_token_header)
@@ -437,8 +402,7 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
             logger.error("error occur because delete count is not legit.. Please verify it")
 
     portal_logs = f"Total location Update {len(location_change_list)}\n Changes = {location_change_list}\n Deleted locations = {delete_locations_list}"
-
-    # post_status_to_admin_app(api_token_header=portal_api_token_header_v2, service_name=service_name, is_running=False, logs=portal_logs)
+    logger.info(portal_logs)
 
 
 def sync_analytics_wrapper(environment):
@@ -448,20 +412,44 @@ def sync_analytics_wrapper(environment):
     else:
         server_path = ''
         server = 'production'
-    service_name = 'sync_analytics_portfolio'
     # load the env file
+
     load_dotenv(f'{os.getcwd()}/.{server}.env')
+
     # Create headers for api calls
     portal_api_token_header = {'Authorization': f"Bearer {os.getenv('PORTAL_ADMIN_API_TOKEN')}"}
     analytics_api_token_header = {'Authorization': f"Bearer {os.getenv('ANALYTICS_SYNC_PORTAL_API_TOKEN')}"}
-    portal_api_token_header_v2 = {'Authorization': f"Bearer {os.getenv('PORTAL_ADMIN_ACCESS_KEY')}:{os.getenv('PORTAL_ADMIN_SECRET_TOKEN')}"}
-    # post_status_to_admin_app(portal_api_token_header_v2, service_name, True, 'Analytics Sync Init')
 
     utc_datetime = str(dt.datetime.utcnow().strftime('%Y%m%d_%H%M00'))
     log_file_name = '{}.txt'.format(utc_datetime)
 
     # create log dir path
     log_dir_path = f'{os.getcwd()}/.logs/sync-analytics/{server}/'
+
+    # Email on Error in Log file
+    def email_log_on_error(log_filepath):
+        utc_minutes = int(dt.datetime.now(pytz.utc).strftime('%M'))
+        # Notify of Error every 15 mins
+        if utc_minutes % 15 == 0:
+            # Read log file
+            with open(log_filepath, 'r') as f:
+                log_content = f.read()
+                # Close file
+                f.close()
+            # Check if ERROR in log
+            if 'ERROR' in log_content:
+                # Get utc datetime
+                utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
+                params = {
+                    "attachments": [log_filepath],
+                    "username": "notifications@voltainsite.com",
+                    "password": os.getenv('GMAIL_APP_PASSWORD'),
+                    "to": "analytics-data-flow-errors@voltainsite.com",
+                    "subject": "[{}] Error Syncing Analytics - {}".format(server.title(), utc_datetime_email),
+                }
+                notifier = notifiers.get_notifier("gmail")
+                notifier.notify(message="Log File attached!".format(server.title()), **params)
+        return 0
 
     # Create directories if they do not exist
     if not os.path.exists(log_dir_path):
@@ -474,7 +462,7 @@ def sync_analytics_wrapper(environment):
     )
 
     # Read Harmonic Frequency JSON file
-    with open(f'{os.getcwd()}/dags/sync_analytics/harmonic_freq_scan_meta.json', 'r') as f:
+    with open(f'./harmonic_freq_scan_meta.json', 'r') as f:
         meta_data_dict = json.load(f)
         # Close file
         f.close()
