@@ -436,3 +436,6 @@ class PortfolioModelSyncAnalytics(BaseModel):
     product_type: Optional[str] = None
     under_voltage_threshold: Optional[float] = None
     alert_library_flags: Optional[FaultLibraryAlertFlags] = None
+    eq_type: Optional[str] = None
+    eq_type_sub: Optional[str] = None
+
