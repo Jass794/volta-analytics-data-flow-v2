@@ -438,4 +438,5 @@ class PortfolioModelSyncAnalytics(BaseModel):
     alert_library_flags: Optional[FaultLibraryAlertFlags] = None
     eq_type: Optional[str] = None
     eq_type_sub: Optional[str] = None
+    np_sf: Optional[float] = 0.15
 

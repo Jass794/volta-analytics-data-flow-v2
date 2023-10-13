@@ -204,7 +204,8 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         under_voltage_threshold=portal_node_details.underVoltageThreshold,
         alert_library_flags=portal_location.faultLibraryAlertFlags,
         eq_type=portal_node_configs.eq_type,
-        eq_type_sub=portal_node_configs.eq_type_sub)
+        eq_type_sub=portal_node_configs.eq_type_sub,
+        np_sf=portal_node_configs.np_sf)
 
     return analytics_location
 
