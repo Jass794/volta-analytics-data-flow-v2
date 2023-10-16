@@ -253,7 +253,7 @@ def get_node_configs(node_sn, portal_api_token):
 def insert_to_analytics(equipment_dict, server_path, analytics_api_token):
     # Create URL, headers and query params
     url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/'
-
+    logger.success("--------------------insert -----------")
     # Get request session from
     put_response = requests.put(url, json=equipment_dict, headers=analytics_api_token)
     put_response.raise_for_status()
@@ -335,14 +335,13 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
                         # get the node configs from the latest data file
                         node_configs = get_latest_datafile(portal_location_node_id, server_path, analytics_api_token_header)
 
-                        if node_details.currentDeploymentStatus in ['Pre-Deployment', 'Deployed']:
-                            if node_configs is None and node_details.type != 'SEL':
-                                logger.info('.....Calling Node config for headers because data file configs are null')
-                                # Get node configs from Portal API
-                                node_configs = get_node_configs(portal_location.locationNodeIds[portal_location_node_id], portal_api_token_header)
+                        if node_details.currentDeploymentStatus in ['Pre-Deployment', 'Deployed'] and node_configs is None and node_details.type != 'SEL':
+                            logger.info('.....Calling Node config for headers because data file configs are null')
+                            # Get node configs from Portal API
+                            node_configs = get_node_configs(portal_location.locationNodeIds[portal_location_node_id], portal_api_token_header)
 
                     except Exception as e:
-                        logger.warning('Failed to fetch node configs from: {}'.format(str(e)))
+                        logger.warning(f'Failed to fetch node configs from: {e}')
                         node_configs = None
                     # Create pydantic node configs model
                     node_configs = AnalyticsNodeConfigs(**node_configs) if node_configs else AnalyticsNodeConfigs()
@@ -382,7 +381,7 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
                             "updated_values": updated_values,
                         })
                         insert_status = insert_to_analytics(portal_analytics_mapped.dict(), server_path, analytics_api_token_header)
-                        logger.success('.....{} - {} - {}'.format(server, insert_status, portal_analytics_mapped.node_sn))
+                        logger.success(f'.....{server} - {insert_status} - {portal_analytics_mapped.node_sn}')
     logger.info(f"{len(location_change_list)} location updated/added....")
     # get the updated locations
     analytics_portfolio = get_analytics_portfolio(server_path, analytics_api_token_header)
@@ -392,7 +391,6 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
         # Create a list of locations to delete from Analytics
         delete_locations_list = [location for location in analytics_portfolio if location not in portal_mapped_locations]
         # added a filter to stop accidental deletion of location
-        print(len(delete_locations_list))
         if len(delete_locations_list) < 20:
             for location in delete_locations_list:
                 # delete the locations from analytics
