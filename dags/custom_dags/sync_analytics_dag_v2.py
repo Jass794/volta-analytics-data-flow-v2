@@ -27,7 +27,7 @@ dag = DAG(
     'sync_analytics',
     default_args=default_args,
     description='Execute sync analytics using bash',
-    schedule_interval="*/10 * * * *",
+    schedule_interval="*/18 * * * *",
     max_active_runs=1,
     catchup=False,
 )
