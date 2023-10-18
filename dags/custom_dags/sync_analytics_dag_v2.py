@@ -28,8 +28,8 @@ dag = DAG(
     default_args=default_args,
     description='Execute sync analytics using bash',
     schedule_interval="*/10 * * * *",
+    max_active_runs=1,
     catchup=False,
-
 )
 
 # BashOperator to execute the Python script using the python command
