@@ -66,6 +66,10 @@ def load_imbalace_location_pairs(node_sn):
         pair = ['5f74cbd4abdd8e19a2b2a230.0']
     elif node_sn == 21047:
         pair = ['5f74cbeeabdd8e19a2b2a246.0']
+    elif node_sn == 21304:
+        pair = ['63e2c0e3abdd8e287378eada.0']
+    elif node_sn == 21305:
+        pair = ['63e2c0e3abdd8e287378ead9.0']
     else:
         pair = []
     # Sort list if not empty
