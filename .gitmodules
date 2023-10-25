@@ -1,0 +1,3 @@
+[submodule "dags/volta-analytics-data-flow"]
+	path = dags/volta-analytics-data-flow
+	url = https://github.com/voltaenergy/volta-analytics-data-flow.git

@@ -6,3 +6,4 @@
 /.idea
 /config/
 *.pyc
+/virtual_env/
