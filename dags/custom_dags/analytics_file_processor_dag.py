@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -50,7 +51,7 @@ install_deps_task = BashOperator(
 # Run the example script
 process_files_task = BashOperator(
     task_id='process_files',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.process_file_queues staging",
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.process_file_queues {os.getenv('SERVER')}",
     dag=dag,
     execution_timeout=timedelta(hours=3),
 )
