@@ -18,7 +18,7 @@ dag = DAG(
     default_args=default_args,
     description='Analytics Files processing',
     schedule_interval=timedelta(seconds=30),  # Set the schedule interval as needed
-    max_active_runs=1,
+    max_active_runs=2,
     catchup=False)
 
 # Set the virtual environment path
@@ -53,7 +53,7 @@ process_files_task = BashOperator(
     task_id='process_files',
     bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.process_file_queues {os.getenv('SERVER')}",
     dag=dag,
-    execution_timeout=timedelta(hours=3),
+    execution_timeout=timedelta(hours=1),
 )
 
 # Set task dependencies
