@@ -17,7 +17,7 @@ dag = DAG(
     'analytics_files_processing',
     default_args=default_args,
     description='Analytics Files processing',
-    schedule_interval=timedelta(seconds=30),  # Set the schedule interval as needed
+    schedule_interval=timedelta(minutes=1),  # Set the schedule interval as needed
     max_active_runs=3,
     catchup=False)
 
