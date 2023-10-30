@@ -79,6 +79,35 @@ def load_imbalace_location_pairs(node_sn):
 
 
 @logger.catch
+# Load imbalance pairs
+def load_imbalace_location_pairs_id(location_node_id):
+    pair = []
+    if location_node_id == '5f74cbd4abdd8e19a2b2a230.0': # Diboll
+        pair = ['5f74cc01abdd8e19a2b2a258.0']
+    elif location_node_id == '5f74cbeeabdd8e19a2b2a246.0': # diboll
+        pair = ['5f74cc1babdd8e19a2b2a26a.0']
+    elif location_node_id == '5f74cc01abdd8e19a2b2a258.0':
+        pair = ['5f74cbd4abdd8e19a2b2a230.0']
+    elif location_node_id == '5f74cc1babdd8e19a2b2a26a.0':
+        pair = ['5f74cbeeabdd8e19a2b2a246.0']
+    elif location_node_id == '63e2c0e3abdd8e287378ead9.0': # 21304
+        pair = ['63e2c0e3abdd8e287378eada.0']
+    elif location_node_id == '63e2c0e3abdd8e287378eada.0': # 21305
+        pair = ['63e2c0e3abdd8e287378ead9.0']
+    elif location_node_id == '63e2c0e3abdd8e287378eada.0':  # 21304
+        pair = ['63e2c0e3abdd8e287378ead9.0']
+    elif location_node_id == '63e2c0e3abdd8e287378ead9.0':  # 21305
+        pair = ['63e2c0e3abdd8e287378eada.0']
+
+    else:
+        pair = []
+    # Sort list if not empty
+    if len(pair) > 0:
+        pair.sort()
+    return pair
+
+
+@logger.catch
 # Get customer portfolio from portal
 def get_portal_portfolio(portal_api_token):
     # Create URL, headers and query param
@@ -166,7 +195,7 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         load_application=portal_location.loadApplication or '---',
         ct_location=portal_location.ctLocation or '---',
         v_tap_location=portal_location.voltageTapLocation or '---',
-        load_imbalance_pairs=load_imbalace_location_pairs(node_sn),
+        load_imbalance_pairs=load_imbalace_location_pairs_id(portal_location_node_id),
         harmonic_frequencies_scan=get_harmonic_freq_scan_dict(portal_location_node_id, harmonics_values),
         tr_i_max=portal_node_configs.tr_i_max,
         active_ia=portal_node_details.activeIa,
