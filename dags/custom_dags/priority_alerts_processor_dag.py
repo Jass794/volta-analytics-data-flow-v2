@@ -57,4 +57,4 @@ process_priority_alerts_task = BashOperator(
 )
 
 # Set task dependencies
-check_venv_task >> create_venv_task >> install_deps_task >> process_standard_alerts_task
+check_venv_task >> create_venv_task >> install_deps_task >> process_priority_alerts_task
