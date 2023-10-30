@@ -30,6 +30,7 @@ from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalA
     NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
+SCRIPT_VERSION = 1
 
 def remove_nan_null(value):
     if value is None:
@@ -492,7 +493,7 @@ def sync_analytics_wrapper(environment):
         format="{time:YYYY-MM-DD HH:mm:ss!UTC} | {level} | {function}:{line} | {message}",
         compression=email_log_on_error
     )
-
+    logger.info(f"Sync Analytics Init Version:{SCRIPT_VERSION}")
     # Read Harmonic Frequency JSON file
     with open(f'./harmonic_freq_scan_meta.json', 'r') as f:
         meta_data_dict = json.load(f)
