@@ -50,7 +50,7 @@ install_deps_task = BashOperator(
 
 # Run the example script
 process_priority_alerts_task = BashOperator(
-    task_id='process_files',
+    task_id='process_priority_alerts',
     bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.priority_alert_queues {os.getenv('SERVER')}",
     dag=dag,
     execution_timeout=timedelta(hours=1),
