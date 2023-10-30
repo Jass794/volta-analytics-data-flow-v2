@@ -96,8 +96,7 @@ def get_portal_portfolio(portal_api_token):
 # Get latest datafile given location_node_id
 def get_analytics_portfolio(server_path, analytics_api_token):
     # Create URL, headers and query params
-    url = 'https://analytics-ecs-api.voltaenergy.ca/internal{}/crud/v2/portfolio/'.format(server_path)
-    # url = 'http://0.0.0.0:8000/internal{}/v2/crud/portfolio/'.format(server_path)
+    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/'
 
     # Get request session from helper
     response = requests.get(url, headers=analytics_api_token)
@@ -218,7 +217,7 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
 # Get latest datafile given location_node_id
 def get_latest_datafile(location_node_id, server_path, analytics_api_token):
     # Create URL, headers and query params
-    url = 'https://analytics-ecs-api.voltaenergy.ca/internal{}/crud/node_data/latest_header/'.format(server_path)
+    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/node_data/latest_header/'
     query_params = {'location_node_id': location_node_id}
     # Get request session from helper
     response = requests.get(url, params=query_params, headers=analytics_api_token)
@@ -257,7 +256,6 @@ def get_node_configs(node_sn, portal_api_token):
 def insert_to_analytics(equipment_dict, server_path, analytics_api_token):
     # Create URL, headers and query params
     url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/'
-    logger.success("--------------------insert -----------")
     # Get request session from
     put_response = requests.put(url, json=equipment_dict, headers=analytics_api_token)
     put_response.raise_for_status()
@@ -296,7 +294,7 @@ def insert_to_analytics_archive(equipment_dict, server_path, analytics_api_token
 # Delete data from analytics
 def delete_from_analytics(decommissioned_location_node_id, server_path, analytics_api_token):
     # Create URL, headers and query params
-    url = 'https://analytics-ecs-api.voltaenergy.ca/internal{}/v2/crud/portfolio/{}/'.format(server_path, decommissioned_location_node_id)
+    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/{decommissioned_location_node_id}/'
     # Get request session from helper
     response = requests.delete(url, headers=analytics_api_token)
     response.raise_for_status()
