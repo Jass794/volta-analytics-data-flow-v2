@@ -18,7 +18,7 @@ dag = DAG(
     default_args=default_args,
     description='Analytics Files processing',
     schedule_interval=timedelta(minutes=1),  # Set the schedule interval as needed
-    max_active_runs=3,
+    max_active_runs=2,
     catchup=False)
 
 # Set the virtual environment path
