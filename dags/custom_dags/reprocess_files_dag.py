@@ -14,9 +14,9 @@ default_args = {
 
 # Instantiate a DAG
 dag = DAG(
-    'analytics_files_processing',
+    'analytics_reprocess_files',
     default_args=default_args,
-    description='Analytics Files processing',
+    description='Analytics Files Reprocessing',
     schedule_interval='30 0 * * *',  # Set the schedule interval as needed
     max_active_runs=1,
     catchup=False)
@@ -50,7 +50,7 @@ install_deps_task = BashOperator(
 
 # Run the example script
 process_files_task = BashOperator(
-    task_id='process_files',
+    task_id='reprocess_files',
     bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.process_file_queues {os.getenv('SERVER')} reprocess",
     dag=dag,
     execution_timeout=timedelta(hours=1),
