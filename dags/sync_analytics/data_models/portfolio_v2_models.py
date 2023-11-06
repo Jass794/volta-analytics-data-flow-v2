@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Tuple
 
 from pydantic import BaseModel, validator
-from sqlalchemy import Column, INTEGER, Float, VARCHAR, ARRAY, JSON, REAL, BIGINT, BOOLEAN, TEXT, NUMERIC
+from sqlalchemy import Column, INTEGER, Float, VARCHAR, ARRAY, JSON, REAL, BIGINT, BOOLEAN, TEXT, NUMERIC339
 from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -37,6 +37,10 @@ class FaultLibraryAlertFlags(BaseModel):
     voltage_imbalance_alert: Optional[bool] = False
     sel_undervoltage_alert: Optional[bool] = False
     sel_overvoltage_alert: Optional[bool] = False
+    event_distribution_ground_fault_alert: Optional[bool] = False
+    transient_distribution_ground_fault_alert: Optional[bool] = False
+    unusual_stop_event_alert: Optional[bool] = False
+
 
 
 # Portal response
@@ -173,6 +177,7 @@ class Facility(BaseModel):
     managers: List
     name: str
     siteName: str
+    facilityLocation: Tuple[float, float]
 
 
 # Portal response
@@ -265,6 +270,7 @@ class PortfolioV2Model(BaseModel):
     pause_notifications: Optional[bool] = None
     product_type: Optional[str] = None
     under_voltage_threshold: Optional[float] = None
+    facility_location: Optional[Tuple[float, float]] = None
 
     class Config:
         orm_mode = True
