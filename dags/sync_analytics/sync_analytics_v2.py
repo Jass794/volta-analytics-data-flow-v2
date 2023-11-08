@@ -83,17 +83,17 @@ def load_imbalace_location_pairs(node_sn):
 # Load imbalance pairs
 def load_imbalace_location_pairs_id(location_node_id):
     pair = []
-    if location_node_id == '5f74cbd4abdd8e19a2b2a230.0': # Diboll
+    if location_node_id == '5f74cbd4abdd8e19a2b2a230.0':  # Diboll
         pair = ['5f74cc01abdd8e19a2b2a258.0']
-    elif location_node_id == '5f74cbeeabdd8e19a2b2a246.0': # diboll
+    elif location_node_id == '5f74cbeeabdd8e19a2b2a246.0':  # diboll
         pair = ['5f74cc1babdd8e19a2b2a26a.0']
     elif location_node_id == '5f74cc01abdd8e19a2b2a258.0':
         pair = ['5f74cbd4abdd8e19a2b2a230.0']
     elif location_node_id == '5f74cc1babdd8e19a2b2a26a.0':
         pair = ['5f74cbeeabdd8e19a2b2a246.0']
-    elif location_node_id == '63e2c0e3abdd8e287378ead9.0': # 21304
+    elif location_node_id == '63e2c0e3abdd8e287378ead9.0':  # 21304
         pair = ['63e2c0e3abdd8e287378eada.0']
-    elif location_node_id == '63e2c0e3abdd8e287378eada.0': # 21305
+    elif location_node_id == '63e2c0e3abdd8e287378eada.0':  # 21305
         pair = ['63e2c0e3abdd8e287378ead9.0']
     elif location_node_id == '63e2c0e3abdd8e287378eada.0':  # 21304
         pair = ['63e2c0e3abdd8e287378ead9.0']
@@ -135,6 +135,7 @@ def get_analytics_portfolio(server_path, analytics_api_token):
     if response.status_code == 200:
         portfolio_list = response.json()['content']
         portfolio_list = [PortfolioModelSyncAnalytics(**loc) for loc in portfolio_list]
+        print(portfolio_list[0])
     return portfolio_list
 
 
@@ -238,7 +239,8 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         alert_library_flags=portal_location.faultLibraryAlertFlags,
         eq_type=portal_node_configs.eq_type,
         eq_type_sub=portal_node_configs.eq_type_sub,
-        np_sf=portal_node_configs.np_sf)
+        np_sf=portal_node_configs.np_sf,
+        facility_location=portal_facility.facilityLocation)
 
     return analytics_location
 

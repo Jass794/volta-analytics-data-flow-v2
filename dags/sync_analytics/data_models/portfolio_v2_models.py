@@ -1,9 +1,6 @@
-from dataclasses import dataclass
 from typing import Optional, List, Any, Tuple
 
 from pydantic import BaseModel, validator
-from sqlalchemy import Column, INTEGER, Float, VARCHAR, ARRAY, JSON, REAL, BIGINT, BOOLEAN, TEXT, NUMERIC339
-from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -177,7 +174,8 @@ class Facility(BaseModel):
     managers: List
     name: str
     siteName: str
-    facilityLocation: Tuple[float, float]
+    facilityLocation: Optional[str] = None
+
 
 
 # Portal response
@@ -276,92 +274,6 @@ class PortfolioV2Model(BaseModel):
         orm_mode = True
 
 
-@dataclass
-class PortfolioV2(Base):
-    __table_args__ = {"schema": "volta", "extend_existing": True}
-    __tablename__ = "portfolio_v2"
-
-    # id = Column(INTEGER, primary_key=False, nullable=False)
-    customer_id = Column(VARCHAR, primary_key=False, nullable=False)
-    customer_code = Column(VARCHAR, primary_key=False, nullable=False)
-    facility_id = Column(VARCHAR, primary_key=False, nullable=False)
-    location_id = Column(VARCHAR, primary_key=False, nullable=False)
-    location_node_id = Column(VARCHAR, primary_key=True, nullable=False)
-    node_sn = Column(INTEGER, primary_key=True, nullable=False)
-    secondary_node_sn = Column(INTEGER, primary_key=False, nullable=True)
-    customer_name = Column(VARCHAR, primary_key=False, nullable=False)
-    facility_name = Column(VARCHAR, primary_key=False, nullable=False)
-    location_name = Column(VARCHAR, primary_key=False, nullable=False)
-    equipment_type = Column(VARCHAR, primary_key=False, nullable=False)
-    location_timezone = Column(VARCHAR, primary_key=False, nullable=False)
-    data_start_epoch = Column(INTEGER, primary_key=False, nullable=False)
-    equipment_start_epoch = Column(INTEGER, primary_key=False, nullable=False)
-    work_cycle = Column(BOOLEAN, primary_key=False, nullable=False)
-    np_voltage = Column(DOUBLE_PRECISION, primary_key=False, nullable=False)
-    np_current = Column(DOUBLE_PRECISION, primary_key=False, nullable=False)
-    np_frequency = Column(DOUBLE_PRECISION, primary_key=False, nullable=False)
-    np_hp = Column(DOUBLE_PRECISION, primary_key=False, nullable=True)
-    np_rpm = Column(Float, primary_key=False, nullable=True)
-    np_poles = Column(Float, primary_key=False, nullable=True)
-    np_rotor_bars = Column(Float, primary_key=False, nullable=True)
-    np_stator_slots = Column(Float, primary_key=False, nullable=True)
-    belt_frequency_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
-    belt_frequencies = Column(ARRAY(Float), primary_key=False, nullable=True, default=[])
-    gearbox_frequency_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
-    gearbox_frequencies = Column(ARRAY(Float), primary_key=False, nullable=True, default=[])
-    current_rise_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=False)
-    trending_report_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
-    current_hat_report_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
-    voltage_hat_report_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
-    events_report_scan = Column(BOOLEAN, primary_key=False, nullable=False, default=True)
-    i_noise = Column(DOUBLE_PRECISION, primary_key=False, nullable=False, default=1.0)
-    v_noise = Column(DOUBLE_PRECISION, primary_key=False, nullable=False, default=30.0)
-    starter = Column(VARCHAR, primary_key=False, nullable=True)
-    motor_change_epoch = Column(ARRAY(INTEGER), primary_key=False, nullable=True)
-    load_application = Column(VARCHAR, primary_key=False, nullable=True)
-    ct_location = Column(VARCHAR, primary_key=False, nullable=True)
-    v_tap_location = Column(VARCHAR, primary_key=False, nullable=True)
-    load_imbalance_pairs = Column(ARRAY(VARCHAR), primary_key=False, nullable=True)
-    harmonic_frequencies_scan = Column(JSON, primary_key=False, nullable=True)
-    tr_i_max = Column(REAL, primary_key=False, nullable=True)
-    active_ia = Column(BOOLEAN, primary_key=False, nullable=True)
-    active_ib = Column(BOOLEAN, primary_key=False, nullable=True)
-    active_ic = Column(BOOLEAN, primary_key=False, nullable=True)
-    active_pa = Column(BOOLEAN, primary_key=False, nullable=True)
-    active_pb = Column(BOOLEAN, primary_key=False, nullable=True)
-    active_pc = Column(BOOLEAN, primary_key=False, nullable=True)
-    container = Column(VARCHAR, primary_key=False, nullable=True)
-    voltage_boundary_upper_percent = Column(Float, primary_key=False, nullable=True)
-    voltage_imbalance_boundary_upper_percent = Column(Float, primary_key=False, nullable=True)
-    voltage_imbalance_threshold = Column(Float, primary_key=False, nullable=True)
-    voltage_thd_boundary_upper_percent = Column(Float, primary_key=False, nullable=True)
-    voltage_thd_threshold = Column(Float, primary_key=False, nullable=True)
-    current_boundary_upper_percent = Column(Float, primary_key=False, nullable=True)
-    current_deployment_status = Column(VARCHAR, primary_key=False, nullable=True)
-    current_deployment_status_update_timestamp = Column(BIGINT, primary_key=False, nullable=True)
-    current_imbalance_boundary_upper_percent = Column(Float, primary_key=False, nullable=True)
-    current_imbalance_threshold = Column(Float, primary_key=False, nullable=True)
-    current_thd_boundary_upper_percent = Column(Float, primary_key=False, nullable=True)
-    current_thd_threshold = Column(Float, primary_key=False, nullable=True)
-    deployment_issue = Column(BOOLEAN, primary_key=False, nullable=True)
-    deprecation_notice = Column(TEXT, primary_key=False, nullable=True)
-    disable_monitoring = Column(BOOLEAN, primary_key=False, nullable=True)
-    ip_address = Column(VARCHAR, primary_key=False, nullable=True)
-    loss_of_phase_transient_threshold = Column(Float, primary_key=False, nullable=True)
-    mac_address = Column(VARCHAR, primary_key=False, nullable=True)
-    monitor_data_point_alerts = Column(BOOLEAN, primary_key=False, nullable=True)
-    nameplate_valid = Column(BOOLEAN, primary_key=False, nullable=True)
-    new_deployment_status = Column(VARCHAR, primary_key=False, nullable=True)
-    new_deployment_status_update_timestamp = Column(BIGINT, primary_key=False, nullable=True)
-    notify_on_connect = Column(BOOLEAN, primary_key=False, nullable=True)
-    notify_on_current_above_noise = Column(BOOLEAN, primary_key=False, nullable=True)
-    over_current_threshold = Column(Float, primary_key=False, nullable=True)
-    over_voltage_threshold = Column(Float, primary_key=False, nullable=True)
-    pause_notifications = Column(BOOLEAN, primary_key=False, nullable=True)
-    product_type = Column(VARCHAR, primary_key=False, nullable=True)
-    under_voltage_threshold = Column(Float, primary_key=False, nullable=True)
-
-
 class PortfolioModelSyncAnalytics(BaseModel):
     customer_id: str
     customer_code: str
@@ -445,4 +357,6 @@ class PortfolioModelSyncAnalytics(BaseModel):
     eq_type: Optional[str] = None
     eq_type_sub: Optional[str] = None
     np_sf: Optional[float] = 1.15
+    facility_location: Optional[str] = None
+
 
