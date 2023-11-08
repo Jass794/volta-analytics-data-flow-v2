@@ -14,10 +14,10 @@ default_args = {
 
 # Instantiate a DAG
 dag = DAG(
-    'one_sec_reprocess_detection',
+    'dc_v_i_change_scan',
     default_args=default_args,
-    description='Analytics Priority Alerts processing',
-    schedule_interval='0 0 * * *',  # Set the schedule interval as needed
+    description='Dc V over I change Scan',
+    schedule_interval='* 4 * * *',
     max_active_runs=1,
     catchup=False)
 
@@ -49,12 +49,12 @@ install_deps_task = BashOperator(
 )
 
 # Run the example script
-change_detect_scan = BashOperator(
-    task_id='change_detect_scan',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.one_sec_metrics_reprocessing_detector",
+dc_v_i_change_scan = BashOperator(
+    task_id='dc_v_i_change_scan',
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow &&  python -m lambdas.fault_library.dc_vi_change_alert",
     dag=dag,
     execution_timeout=timedelta(hours=1),
 )
 
 # Set task dependencies
-check_venv_task >> create_venv_task >> install_deps_task >> change_detect_scan
+check_venv_task >> create_venv_task >> install_deps_task >> dc_v_i_change_scan
