@@ -51,7 +51,7 @@ install_deps_task = BashOperator(
 # Run the example script
 dc_v_i_change_scan = BashOperator(
     task_id='dc_v_i_change_scan',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow &&  python -m lambdas.fault_library.dc_vi_change_alert",
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow &&  python -m lambdas.fault_library.dc_vi_change_alert {os.getenv('SERVER')}",
     dag=dag,
     execution_timeout=timedelta(hours=1),
 )
