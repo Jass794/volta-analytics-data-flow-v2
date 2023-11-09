@@ -17,7 +17,7 @@ dag = DAG(
     'harmonic_alerts_scan',
     default_args=default_args,
     description='Create Harmonic Alerts',
-    schedule_interval='* 5 * * *',
+    schedule_interval='0 5 * * *',
     max_active_runs=1,
     catchup=False)
 
