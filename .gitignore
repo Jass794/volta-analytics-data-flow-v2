@@ -8,3 +8,5 @@
 *.pyc
 /virtual_env/
 .vscode
+*.logs
+*.txt
