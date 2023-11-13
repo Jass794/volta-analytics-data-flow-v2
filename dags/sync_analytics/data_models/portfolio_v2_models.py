@@ -12,7 +12,7 @@ class FaultLibraryAlertFlags(BaseModel):
     current_thd_alert: Optional[bool] = False
     undervoltage_alert: Optional[bool] = False
     distribution_ground_fault_alert: Optional[bool] = False
-    motor_failure: Optional[bool] = False
+    # motor_failure: Optional[bool] = False
     overvoltage_alert: Optional[bool] = False
     sel_alarms_trip_count_alert: Optional[bool] = False
     v_over_i_change: Optional[bool] = False
@@ -125,16 +125,16 @@ class DecommissionedNode(BaseModel):
 
 
 # Portal response
-class EquipmentStartDate(BaseModel):
-    date: int
-    day: int
-    hours: int
-    minutes: int
-    month: int
-    seconds: int
-    time: int
-    timezoneOffset: int
-    year: int
+# class EquipmentStartDate(BaseModel):
+#     date: int
+#     day: int
+#     hours: int
+#     minutes: int
+#     month: int
+#     seconds: int
+#     time: int
+#     timezoneOffset: int
+#     year: int
 
 
 # Portal response
@@ -142,7 +142,6 @@ class Location(BaseModel):
     ctLocation: str
     customerXRefId: str
     displayName: str
-    equipmentStartDate: EquipmentStartDate
     equipmentStartTimestamp: int
     equipmentType: str
     id: str
