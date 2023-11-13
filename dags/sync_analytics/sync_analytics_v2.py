@@ -23,6 +23,7 @@ import pytz
 import requests
 from dotenv import load_dotenv
 from loguru import logger
+import time 
 
 from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalApiModel, \
     Location as PortalLocation, \
@@ -30,7 +31,7 @@ from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalA
     NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
-SCRIPT_VERSION = 1
+SCRIPT_VERSION = 1.1
 
 def remove_nan_null(value):
     if value is None:
@@ -121,6 +122,79 @@ def get_portal_portfolio(portal_api_token):
     portal_locations = [PortalApiModel(**loc) for loc in json_response]
     return portal_locations
 
+@logger.catch
+# Get latest datafile given location_node_id
+def get_latest_datafile(location_node_id, server_path, analytics_api_token):
+    # Create URL, headers and query params
+    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/node_data/latest_header/'
+    query_params = {'location_node_id': location_node_id}
+    # Get request session from helper
+    response = requests.get(url, params=query_params, headers=analytics_api_token)
+    if response.status_code == 502:
+        time.sleep(3)
+        response = requests.get(url, params=query_params, headers=analytics_api_token)
+    response.raise_for_status()
+    if response.status_code == 200:
+        datafile_dict = response.json()['content']
+        datafile_header_dict = datafile_dict['file_headers']
+    else:
+        datafile_header_dict = None
+    return datafile_header_dict
+
+
+
+@logger.catch
+# Inset data to analytics
+def insert_to_analytics(equipment_dict, server_path, analytics_api_token):
+    # Create URL, headers and query params
+    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/'
+    # Get request session from
+    put_response = requests.put(url, json=equipment_dict, headers=analytics_api_token)
+    put_response.raise_for_status()
+    # If response code is 204, Make a post request
+    if put_response.status_code != 200:
+        # Get request session from helper
+        post_response = requests.post(url, json=equipment_dict, headers=analytics_api_token)
+        post_response.raise_for_status()
+        status = 'Inserted'
+    else:
+        status = 'Updated'
+    return status
+
+
+@logger.catch
+# Inset data to analytics
+def insert_to_analytics_archive(equipment_dict, server_path, analytics_api_token):
+    # Create URL, headers and query params
+    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio_archive/'
+
+    # Get request session from
+    put_response = requests.put(url, json=equipment_dict, headers=analytics_api_token)
+    put_response.raise_for_status()
+    # If response code is 204, Make a post request
+    if put_response.status_code != 200:
+        # Get request session from helper
+        post_response = requests.post(url, json=equipment_dict, headers=analytics_api_token)
+        post_response.raise_for_status()
+        status = 'Inserted'
+    else:
+        status = 'Updated'
+    return status
+
+
+@logger.catch
+# Delete data from analytics
+def delete_from_analytics(decommissioned_location_node_id, server_path, analytics_api_token):
+    # Create URL, headers and query params
+    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/{decommissioned_location_node_id}/'
+    # Get request session from helper
+    response = requests.delete(url, headers=analytics_api_token)
+    response.raise_for_status()
+    if response.status_code == 200:
+        status = 'Deleted'
+    else:
+        status = 'Not Deleted'
+    return status
 
 @logger.catch
 # Get latest datafile given location_node_id
@@ -135,7 +209,6 @@ def get_analytics_portfolio(server_path, analytics_api_token):
     if response.status_code == 200:
         portfolio_list = response.json()['content']
         portfolio_list = [PortfolioModelSyncAnalytics(**loc) for loc in portfolio_list]
-        print(portfolio_list[0])
     return portfolio_list
 
 
@@ -245,97 +318,6 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
     return analytics_location
 
 
-@logger.catch
-# Get latest datafile given location_node_id
-def get_latest_datafile(location_node_id, server_path, analytics_api_token):
-    # Create URL, headers and query params
-    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/node_data/latest_header/'
-    query_params = {'location_node_id': location_node_id}
-    # Get request session from helper
-    response = requests.get(url, params=query_params, headers=analytics_api_token)
-    response.raise_for_status()
-    if response.status_code == 200:
-        datafile_dict = response.json()['content']
-        datafile_header_dict = datafile_dict['file_headers']
-    else:
-        datafile_header_dict = None
-    return datafile_header_dict
-
-
-@logger.catch
-# Get node nameplate from Portal
-def get_node_configs(node_sn, portal_api_token):
-    url = 'https://portal.voltainsite.com/api/nodes/{}/config'.format(str(node_sn))
-    # Get request session from helper
-    response = requests.get(url, headers=portal_api_token)
-    response.raise_for_status()
-    if response.status_code == 400:
-        hdr_dict = None
-    else:
-        response.raise_for_status()
-        if response.status_code == 200:
-            hdr_dict = response.json()['data']
-            # Check if dict is empty
-            if hdr_dict == {}:
-                hdr_dict = None
-        else:
-            hdr_dict = None
-    return hdr_dict
-
-
-@logger.catch
-# Inset data to analytics
-def insert_to_analytics(equipment_dict, server_path, analytics_api_token):
-    # Create URL, headers and query params
-    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/'
-    # Get request session from
-    put_response = requests.put(url, json=equipment_dict, headers=analytics_api_token)
-    put_response.raise_for_status()
-    # If response code is 204, Make a post request
-    if put_response.status_code != 200:
-        # Get request session from helper
-        post_response = requests.post(url, json=equipment_dict, headers=analytics_api_token)
-        post_response.raise_for_status()
-        status = 'Inserted'
-    else:
-        status = 'Updated'
-    return status
-
-
-@logger.catch
-# Inset data to analytics
-def insert_to_analytics_archive(equipment_dict, server_path, analytics_api_token):
-    # Create URL, headers and query params
-    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio_archive/'
-
-    # Get request session from
-    put_response = requests.put(url, json=equipment_dict, headers=analytics_api_token)
-    put_response.raise_for_status()
-    # If response code is 204, Make a post request
-    if put_response.status_code != 200:
-        # Get request session from helper
-        post_response = requests.post(url, json=equipment_dict, headers=analytics_api_token)
-        post_response.raise_for_status()
-        status = 'Inserted'
-    else:
-        status = 'Updated'
-    return status
-
-
-@logger.catch
-# Delete data from analytics
-def delete_from_analytics(decommissioned_location_node_id, server_path, analytics_api_token):
-    # Create URL, headers and query params
-    url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server_path}/crud/v2/portfolio/{decommissioned_location_node_id}/'
-    # Get request session from helper
-    response = requests.delete(url, headers=analytics_api_token)
-    response.raise_for_status()
-    if response.status_code == 200:
-        status = 'Deleted'
-    else:
-        status = 'Not Deleted'
-    return status
-
 
 @logger.catch
 def sync_analytics(server_path, server, portal_api_token_header, analytics_api_token_header, meta_data_dict):
@@ -364,19 +346,9 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
                         logger.warning(f"Skipped SubNode {location_full_name} {locations_count}")
                         continue
                     locations_count = locations_count + 1
-                    # add to try block to if it fails to get node configs location not get deleted
-                    try:
-                        # get the node configs from the latest data file
-                        node_configs = get_latest_datafile(portal_location_node_id, server_path, analytics_api_token_header)
-
-                        if node_details.currentDeploymentStatus in ['Pre-Deployment', 'Deployed'] and node_configs is None and node_details.type != 'SEL':
-                            logger.info('.....Calling Node config for headers because data file configs are null')
-                            # Get node configs from Portal API
-                            node_configs = get_node_configs(portal_location.locationNodeIds[portal_location_node_id], portal_api_token_header)
-
-                    except Exception as e:
-                        logger.warning(f'Failed to fetch node configs from: {e}')
-                        node_configs = None
+                    # get the node configs from the latest data file
+                    node_configs = get_latest_datafile(portal_location_node_id, server_path, analytics_api_token_header)
+                    
                     # Create pydantic node configs model
                     node_configs = AnalyticsNodeConfigs(**node_configs) if node_configs else AnalyticsNodeConfigs()
                     # Create location according to the analytics location
