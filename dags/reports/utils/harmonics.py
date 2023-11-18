@@ -350,6 +350,8 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
             (harmonic_frame['harmonic_freq'].lt(harmonic_lf + tolerance))
             ].copy()
         # Group by time and choose max if multiple harmonics are found within a tolerance
+        given_harmonic_frame = given_harmonic_frame.sort_values(by='harmonic_value', ascending=False).drop_duplicates('time', keep='first').reset_index(drop=True)
+        # Group by time and choose max if multiple harmonics are found within a tolerance
         given_harmonic_frame.index = pd.to_datetime(given_harmonic_frame['time'])
         given_harmonic_frame = given_harmonic_frame[['harmonic_value']]
 
@@ -357,12 +359,19 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
         st_slicing_date = scan_date - dt.timedelta(days=st_avg_days)
         lt_slicing_date = scan_date - dt.timedelta(days=lt_avg_days)
 
+        harmonic_frame_min_date = given_harmonic_frame.index.min()
+        # performing check that df have valid data
+        if st_slicing_date < harmonic_frame_min_date and lt_slicing_date < harmonic_frame_min_date:
+            continue
+        
         # Total harmonics count
-        total_harmonic_count = given_harmonic_frame[lt_slicing_date:]['harmonic_value'].count()
+        total_harmonic_count = given_harmonic_frame[given_harmonic_frame.index >= lt_slicing_date]['harmonic_value'].count()
+        # slice long term df 
+        lt_harmonics_frame = given_harmonic_frame[(given_harmonic_frame.index >= lt_slicing_date) & 
+                                                  (given_harmonic_frame.index < st_slicing_date)]
+        
+        st_harmonics_frame = given_harmonic_frame[(given_harmonic_frame.index >= st_slicing_date)]
 
-        # slicing the short term / long term frame
-        lt_harmonics_frame = given_harmonic_frame[lt_slicing_date:st_slicing_date]
-        st_harmonics_frame = given_harmonic_frame[st_slicing_date:]
         # Skip if st/ lt file count is less than 15/75 # todo: move this count ot variable
         if (len(st_harmonics_frame.index) < 15 or len(lt_harmonics_frame.index) < 75) and location_dict['node_details']['type'] == 'Node' :
             print(f'Skipping due to count is not desired st count {len(st_harmonics_frame.index)}, lt count {len(lt_harmonics_frame.index)} ')
@@ -384,7 +393,8 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
 
         # Slice the df for max/ min peak selection
         lt_strip_start_date = st_slicing_date - dt.timedelta(days=max_peak_days)
-        harmonic_resampled_df = lt_harmonics_frame[lt_strip_start_date:st_slicing_date].resample('24H').mean().dropna()
+        harmonic_resampled_df = given_harmonic_frame[(given_harmonic_frame.index >= lt_strip_start_date) & 
+                                                  (given_harmonic_frame.index < st_slicing_date)].resample('24H').mean().dropna()
         # print(f"first elemnt of peak selection  frame {harmonic_resampled_df.head(1)} \n last elemnt {harmonic_resampled_df.tail(1)}")
 
         lt_harmonic_max_lf_value = harmonic_resampled_df['harmonic_value'].max()
