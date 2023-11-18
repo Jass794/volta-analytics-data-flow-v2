@@ -17,9 +17,6 @@ import os
 change_impace_threshold = 50
 
 
-
-
-
 # Apply harmonic filter on hat report
 def apply_harmonics_filter_v2(report_hat_frame):
     # Reset Index
@@ -143,7 +140,6 @@ def hat_report(location_df, report_date, report_type, api_token):
             new_harmonics = tolerance_harmonics_removal_v2(report_harmonics, previous_hat_reports)
             # Remove mirror harmonics in 1-2 LF range
             new_harmonics = mirror_harmonics_removal(new_harmonics)
-    pd.set_option('display.max_rows', None)
     # Order columns in new_harmonics and report_harmonics
     ordered_columns = [
         'customer_name', 'node_sn', 'location_name', 'facility_name', 'harmonic_lf',
