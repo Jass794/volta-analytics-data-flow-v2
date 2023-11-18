@@ -101,8 +101,7 @@ def hat_scan(location_dict, report_date, report_type, api_token):
                                                                max_peak_days=st_scan_look_back_days,
                                                                scan_date=scan_end_day_start_time,
                                                                scan_type='short_term',
-                                                               location_dict=location_dict
-                                                               )
+                                                               location_dict=location_dict)
             processed_daily_st_scan = pd.DataFrame(processed_daily_st_scan)
 
         if perform_lt_scan:
