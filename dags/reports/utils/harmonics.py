@@ -250,6 +250,18 @@ def get_harmonic_data_v2(location_node_id, start_date, end_date, parameter, api_
     return harmonic_df
 
 
+def get_harmonic_signatures(api_token, server):
+    report_url = f'https://analytics-ecs-api.voltaenergy.ca/internal{server}/crud/v2/harmonic-signatures/'
+    header = {'Authorization': f"Bearer {api_token}"}
+    harmonic_signatures_df = pd.DataFrame()
+
+    response = requests.get(url=report_url, headers=header)
+    response.raise_for_status()
+
+    if response.status_code == 200:
+        harmonic_signatures_df = pd.DataFrame.from_dict(response.json()['content'])
+    return harmonic_signatures_df
+
 # Process daily scan data
 def process_harmonic_data(harmonic_frame, harmonic_list, lt_st_ratio, lt_avg_days):
     # First next_harmonic_lf is from 1 LF range
@@ -354,7 +366,7 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
         # Group by time and choose max if multiple harmonics are found within a tolerance
         given_harmonic_frame.index = pd.to_datetime(given_harmonic_frame['time'])
         given_harmonic_frame = given_harmonic_frame[['harmonic_value']]
-
+        # print(given_harmonic_frame)
         # Create dates for data slicing
         st_slicing_date = scan_date - dt.timedelta(days=st_avg_days)
         lt_slicing_date = scan_date - dt.timedelta(days=lt_avg_days)
@@ -374,10 +386,10 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
 
         # Skip if st/ lt file count is less than 15/75 # todo: move this count ot variable
         if (len(st_harmonics_frame.index) < 15 or len(lt_harmonics_frame.index) < 75) and location_dict['node_details']['type'] == 'Node' :
-            print(f'Skipping due to count is not desired st count {len(st_harmonics_frame.index)}, lt count {len(lt_harmonics_frame.index)} ')
+            print(f'Skipping due to count is not desired st count {len(st_harmonics_frame.index)}, lt count {len(lt_harmonics_frame.index)}  of Harmonic LF {harmonic_lf}')
             continue
         elif location_dict['node_details']['type'] != 'Node' and len(st_harmonics_frame.index) < 5:
-            print(f'Skipping due to count is not desired st SEL count {len(st_harmonics_frame.index)}, lt count {len(lt_harmonics_frame.index)} ')
+            print(f'Skipping due to count is not desired st SEL count {len(st_harmonics_frame.index)}, lt count {len(lt_harmonics_frame.index)}  of Harmonic LF {harmonic_lf}')
             continue
         # get the short term count and average
         st_harmonic_average = st_harmonics_frame['harmonic_value'].mean()

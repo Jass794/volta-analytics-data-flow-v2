@@ -5,6 +5,7 @@ sys.path.append('/dags/reports/')
 import os
 from datetime import timedelta
 from airflow import DAG
+from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from dotenv import load_dotenv
 from datetime import datetime
@@ -26,13 +27,16 @@ with DAG(
         catchup=False,
         max_active_runs=1
 ) as f:
-    current_hat_scan_execute = PythonOperator(
-        task_id="current_hat_scan",
-        python_callable=run_hat_scan,
-        op_args=['Current', os.getenv('SERVER')],
+
+    # Run the example script
+    current_hat_scan_execute = BashOperator(
+        task_id='current_hat_scan',
+        bash_command="cd /opt/airflow/dags && python -m reports.hat.hat_scan -t Current staging",
+        dag=f,
         execution_timeout=timedelta(hours=1),
-        provide_context=True,
     )
+
+
 
     current_hat_report_execute = PythonOperator(
         task_id="current_hat_report",
