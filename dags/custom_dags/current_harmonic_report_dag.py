@@ -31,7 +31,7 @@ with DAG(
     # Run the example script
     current_hat_scan_execute = BashOperator(
         task_id='current_hat_scan',
-        bash_command="cd /opt/airflow/dags && python -m reports.hat.hat_scan -t Current staging",
+        bash_command=f"cd /opt/airflow/dags && python -m reports.hat.hat_scan -t Current {os.getenv('SERVER')}",
         dag=f,
         execution_timeout=timedelta(hours=1),
     )

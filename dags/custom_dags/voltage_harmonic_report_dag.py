@@ -6,6 +6,7 @@ import os
 from datetime import timedelta
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.bash_operator import BashOperator
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -26,12 +27,11 @@ with DAG(
         catchup=False,
         max_active_runs=1
 ) as f:
-    voltage_hat_scan_execute = PythonOperator(
-        task_id="voltage_hat_scan",
-        python_callable=run_hat_scan,
-        op_args=['Voltage', os.getenv('SERVER')],
+    voltage_hat_scan_execute = BashOperator(
+        task_id='current_hat_scan',
+        bash_command=f"cd /opt/airflow/dags && python -m reports.hat.hat_scan -t Voltage {os.getenv('SERVER')}",
+        dag=f,
         execution_timeout=timedelta(hours=1),
-        provide_context=True,
     )
 
     voltage_hat_report_execute = PythonOperator(
