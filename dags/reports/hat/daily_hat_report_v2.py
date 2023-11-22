@@ -34,46 +34,14 @@ def apply_harmonics_filter_v2(report_hat_frame):
 
     return report_harmonics.reset_index(drop=True)
 
+# Apply harmonic filter on hat report
+def apply_harmonics_filter_tolerance(report_hat_frame, tolerance=10):
+    # Reset Index
+    report_harmonics = report_hat_frame.reset_index(drop=True)
+    # LT Avg greater than 0.01
+    report_harmonics = report_harmonics[report_harmonics['st_avg'] >= tolerance]
 
-# Remove harmonics from the harmonics_df within tolerance
-def tolerance_harmonics_removal_v2(new_df, old_df):
-    new_df = new_df.reset_index(drop=True)
-    old_df = old_df.reset_index(drop=True)
-
-    # Remove duplicates from old_df
-    old_df = old_df.drop_duplicates(subset=['location_node_id', 'harmonic_lf'], keep='last')
-
-    # Sort new_df by harmonic_lf
-    new_df = new_df.sort_values(by='harmonic_lf').reset_index(drop=True)
-
-    final_hat_records = []
-    # Loop through each Equipment
-    location_list = new_df['location_node_id'].unique()
-    for location in location_list:
-        equipment_new_hat_frame = new_df[new_df['location_node_id'] == location]
-        equipment_old_hat_frame = old_df[old_df['location_node_id'] == location]
-        # Loop through each harmonic_lf to remove next harmonics if within tolerance
-        for _, row in equipment_new_hat_frame.iterrows():
-            running_harmonic_lf = row['harmonic_lf']
-            tolerance = get_lf_tolerance(running_harmonic_lf)
-            # Find all rows with harmonic_lf in tolerance range
-            old_df_tolerance = equipment_old_hat_frame[
-                (equipment_old_hat_frame['harmonic_lf'] >= running_harmonic_lf - tolerance) &
-                (equipment_old_hat_frame['harmonic_lf'] < (running_harmonic_lf + tolerance))
-                ]
-            # If old_df_tolerance is empty add row to new frame
-            if old_df_tolerance.empty:
-                final_hat_records.append(row)
-    # Create frame from records
-    final_hat_frame = pd.DataFrame(final_hat_records)
-    if final_hat_frame.empty:
-        return final_hat_frame
-    else:
-        # Sort final_hat_frame by harmonic_lf
-        final_hat_frame = final_hat_frame.sort_values(by='harmonic_lf', ascending=True).reset_index(drop=True)
-        # Reset index
-        final_hat_frame = final_hat_frame.reset_index(drop=True)
-        return final_hat_frame
+    return report_harmonics.reset_index(drop=True)
 
 
 @logger.catch
@@ -81,6 +49,8 @@ def tolerance_harmonics_removal_v2(new_df, old_df):
 def hat_report(location_df, report_date, report_type, api_token):
     logger.info('{} HAT Report Initiated for {}'.format(report_type.title(), report_date))
     report_hat_frame = pd.DataFrame()
+    report_tolerance_frame = pd.DataFrame()
+
     # Hat Report type
     hat_type = '{}_hat_report_v2'.format(report_type)
     # Loop through unique location_node_id
@@ -88,7 +58,6 @@ def hat_report(location_df, report_date, report_type, api_token):
         # Get row of location_node_id
         row = location_df[location_df['location_node_id'] == location_node_id]
         # Create Equipment name and location if
-        vfd_driven = bool(row['vfd_driven'].values[0])
         node_sn = int(row['node_sn'].values[0])
         location_name = str(row['location_name'].values[0])
         facility_name = str(row['facility_name'].values[0])
@@ -112,34 +81,27 @@ def hat_report(location_df, report_date, report_type, api_token):
             eqpt_hat_report['customer_id'] = customer_id
             eqpt_hat_report['location_node_id'] = location_node_id
             eqpt_hat_report['starter'] = row['starter'].values[0]
-
-            # Round harmonic_lf to 2 decimal places
-            eqpt_hat_report['harmonic_lf'] = eqpt_hat_report['harmonic_lf']
-            # Filter to reduce harmonics
-            eqpt_hat_report = apply_harmonics_filter_v2(eqpt_hat_report)
-
+            
             eqpt_hat_report = eqpt_hat_report.drop_duplicates(subset='harmonic_lf')
-            # Add equipment to report_hat_frame
-            report_hat_frame = pd.concat([report_hat_frame, eqpt_hat_report], ignore_index=True)
+
+
+            # Filter to reduce harmonics
+            report_hat_frame_temp = apply_harmonics_filter_v2(eqpt_hat_report.copy())
+            report_tolerance_frame_temp = apply_harmonics_filter_tolerance(eqpt_hat_report.copy())
+
+             # Add equipment to report_hat_frame
+            report_hat_frame = pd.concat([report_hat_frame, report_hat_frame_temp], ignore_index=True)
+            report_tolerance_frame = pd.concat([report_tolerance_frame, report_tolerance_frame_temp], ignore_index=True)
+
+
     if report_hat_frame.empty:
         logger.warning('No Daily scans found on {}'.format(report_date))
         return 0
-    else:
-        # Remove mirror harmonics from 1-2 LF
-        report_harmonics = mirror_harmonics_removal(report_hat_frame)
-        # Get Previous hat reports
-        previous_hat_reports = get_previous_reports(report_date, hat_type, api_token)
+    
+    # Remove mirror harmonics from 1-2 LF
+    report_harmonics = mirror_harmonics_removal(report_hat_frame)
+    report_tolerance_frame = mirror_harmonics_removal(report_tolerance_frame)
 
-        if previous_hat_reports.empty:
-            logger.warning('Empty previous hat report email on {}'.format(report_date))
-            new_harmonics = report_harmonics
-        else:
-            # Remove duplicates on location_node_id and harmonics_lf
-            previous_hat_reports = previous_hat_reports.drop_duplicates(subset=['location_node_id', 'harmonic_lf'])
-            # Remove harmonics within tolerance using previous_hat_reports
-            new_harmonics = tolerance_harmonics_removal_v2(report_harmonics, previous_hat_reports)
-            # Remove mirror harmonics in 1-2 LF range
-            new_harmonics = mirror_harmonics_removal(new_harmonics)
     # Order columns in new_harmonics and report_harmonics
     ordered_columns = [
         'customer_name', 'node_sn', 'location_name', 'facility_name', 'harmonic_lf',
@@ -149,25 +111,16 @@ def hat_report(location_df, report_date, report_type, api_token):
         'lt_harmonic_max_lf_value_date', 'lt_harmonic_min_lf_value_date', 'starter', 'scan_period_type'
     ]
 
-    new_harmonics = new_harmonics[ordered_columns]
     report_harmonics = report_harmonics[ordered_columns]
+    report_tolerance_frame = report_tolerance_frame[ordered_columns]
     # Sort new_harmonics and report_harmonics by harmonic_lf
-    new_harmonics = new_harmonics.sort_values(by=['harmonic_lf'], ascending=True).reset_index(drop=True)
     report_harmonics = report_harmonics.sort_values(by=['harmonic_lf'], ascending=True).reset_index(drop=True)
-    # Make node_sn, st_count, lt_count, total_count column a int
-    new_harmonics['node_sn'] = new_harmonics['node_sn'].astype(int)
-    new_harmonics['st_count'] = new_harmonics['st_count'].astype(int)
-    new_harmonics['lt_count'] = new_harmonics['lt_count'].astype(int)
-    new_harmonics['total_count'] = new_harmonics['total_count'].astype(int)
-    report_harmonics['node_sn'] = report_harmonics['node_sn'].astype(int)
-    report_harmonics['st_count'] = report_harmonics['st_count'].astype(int)
-    report_harmonics['lt_count'] = report_harmonics['lt_count'].astype(int)
-    report_harmonics['total_count'] = report_harmonics['total_count'].astype(int)
-
+    report_tolerance_frame = report_tolerance_frame.sort_values(by=['harmonic_lf'], ascending=True).reset_index(drop=True)
+  
     # Insert to Production DB
-    report_contents = insert_hat_report(report_date, hat_type, new_harmonics, report_harmonics, '/internal', api_token)
+    report_contents = insert_hat_report(report_date, hat_type, report_harmonics, report_tolerance_frame, '/internal', api_token)
     # Insert to Staging DB
-    report_contents = insert_hat_report(report_date, hat_type, new_harmonics, report_harmonics, '/internal/staging', api_token)
+    report_contents = insert_hat_report(report_date, hat_type, report_harmonics, report_tolerance_frame ,'/internal/staging', api_token)
     # Add message to report_contents
     report_contents['message'] = 'Daily Report Successfully Generated'
     logger.success('HAT report for {} created\n'.format(report_date))
@@ -183,7 +136,7 @@ def email_hat_report(processed_dict, hat_type, email_app_pass):
     # Set report date
     report_date = dt.datetime.strptime(processed_dict['report_date'], '%Y-%m-%d').date()
     # Get new harmonics from processed_dict
-    new_harmonics = pd.DataFrame(processed_dict['new_harmonics'])
+    new_harmonics = pd.DataFrame(processed_dict['report_harmonics'])
     # Order by node_sn and harmonic_lf
     new_harmonics = new_harmonics.sort_values(by=['node_sn', 'harmonic_lf'], ascending=True).reset_index(drop=True)
     # Order columns for display
@@ -227,7 +180,7 @@ def email_hat_report(processed_dict, hat_type, email_app_pass):
             <body>
                 <div class="row">
                 <div class="column">
-                <h2 class="heading">New Harmonics:</h2>
+                <h2 class="heading">Harmonics:</h2>
                     {0}
                 </div>
                 </div>

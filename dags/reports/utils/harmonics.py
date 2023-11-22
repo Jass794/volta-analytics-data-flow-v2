@@ -453,7 +453,7 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
 
 
 # Insert report to DB
-def insert_hat_report(report_date, report_type, new_harmonics, report_harmonics, server, ANALYTICS_API_TOKEN):
+def insert_hat_report(report_date, report_type, report_harmonics, report_tolerance_frame, server, ANALYTICS_API_TOKEN):
     # INSERT INTO DATABASE
     if server == '/internal/staging':
         server_type = 'Staging'
@@ -475,7 +475,8 @@ def insert_hat_report(report_date, report_type, new_harmonics, report_harmonics,
         report_content = {
             'email_time': response_dict['content']['email_time'],
             'report_date': report_date,
-            'new_harmonics': new_harmonics.to_dict(),
+            'new_harmonics': {},
+            'tolertance_filter_harmonics': report_tolerance_frame.to_dict(),
             'report_harmonics': report_harmonics.to_dict()
         }
         # Update database with put request
@@ -499,7 +500,8 @@ def insert_hat_report(report_date, report_type, new_harmonics, report_harmonics,
         report_content = {
             'email_time': email_time,
             'report_date': report_date,
-            'new_harmonics': new_harmonics.to_dict(),
+            'new_harmonics': {},
+            'tolertance_filter_harmonics': report_tolerance_frame.to_dict(),
             'report_harmonics': report_harmonics.to_dict()
         }
         # Add report to database
