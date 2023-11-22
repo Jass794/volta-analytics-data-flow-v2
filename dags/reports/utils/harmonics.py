@@ -476,7 +476,7 @@ def insert_hat_report(report_date, report_type, report_harmonics, report_toleran
             'email_time': response_dict['content']['email_time'],
             'report_date': report_date,
             'new_harmonics': {},
-            'tolertance_filter_harmonics': report_tolerance_frame.to_dict(),
+            'harmonics_abv_threshold': report_tolerance_frame.to_dict(),
             'report_harmonics': report_harmonics.to_dict()
         }
         # Update database with put request
@@ -490,8 +490,7 @@ def insert_hat_report(report_date, report_type, report_harmonics, report_toleran
             'notified': True
         }
         response = requests.put(url=put_url, json=put_body, headers=headers)
-        print(response.reason)
-        print(response.text)
+       
         response.raise_for_status()
     elif response.status_code == 204:
         # Email are send a UTC day ahead of the report date
@@ -501,7 +500,7 @@ def insert_hat_report(report_date, report_type, report_harmonics, report_toleran
             'email_time': email_time,
             'report_date': report_date,
             'new_harmonics': {},
-            'tolertance_filter_harmonics': report_tolerance_frame.to_dict(),
+            'harmonics_abv_threshold': report_tolerance_frame.to_dict(),
             'report_harmonics': report_harmonics.to_dict()
         }
         # Add report to database
