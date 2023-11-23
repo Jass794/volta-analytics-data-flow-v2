@@ -54,7 +54,6 @@ def get_harmonic_data_v2(location_node_id, start_date, end_date, parameter, api_
     }
     # Create API Call for Harmonics
     response = requests.get(url, headers=headers, params=query_params)
-    print(response.status_code)
     response.raise_for_status()
     if response.status_code == 204:
         harmonic_df = pd.DataFrame(columns=[
@@ -342,7 +341,7 @@ class PostHatScanData:
             post_body = {
                 'time': str(post_time),
                 'node_sn': str(location.node_sn),
-                'location_node_id': location.location_id,
+                'location_node_id': location.location_node_id,
             }
             # Hat Report type
             hat_type = '{}_hat_report_v2'.format(report_type)
@@ -358,7 +357,6 @@ class PostHatScanData:
             # INSERT INTO PRODUCTION DB
             # Add report to database
             if server == 'production':
-                logger.info('Adding scan results to production')
                 post_url = "https://analytics-ecs-api.voltaenergy.ca/internal/crud/daily_scans/"
                 prod_response = requests.post(url=post_url, json=post_body, headers=headers)
                 logger.info('Report for {} Added Production Status: {}'.format(log_name, prod_response.status_code))

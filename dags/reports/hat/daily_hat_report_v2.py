@@ -309,6 +309,7 @@ if __name__ == "__main__":
         sys.exit(1)
     if '-d' in args:
         debug=True
+    server_env = 'production' if 'production' in args else 'staging'
 
-    generate_hat_report(report_type,debug=debug)
+    generate_hat_report(report_type,env=server_env, debug=debug)
 
