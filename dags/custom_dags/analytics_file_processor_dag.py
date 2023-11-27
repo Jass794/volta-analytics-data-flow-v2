@@ -1,5 +1,6 @@
 import sys
 sys.path.append('/config/')
+sys.path.append('/dags/')
 
 import os
 from datetime import timedelta
