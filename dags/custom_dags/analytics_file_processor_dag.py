@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/config')
+
 import os
 from datetime import timedelta
 from airflow import DAG
