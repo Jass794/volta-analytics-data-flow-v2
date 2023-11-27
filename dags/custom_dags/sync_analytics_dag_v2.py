@@ -1,17 +1,25 @@
 import os
 import sys
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from dotenv import load_dotenv
-from datetime import datetime
-from config.configs import airflow_default_dag_args
 
 sys.path.append('/dags/sync_analytics/')
 
 load_dotenv(f'{os.getcwd()}/.env')
 load_dotenv(f"{os.getcwd()}/.{os.getenv('SERVER')}.env")
+
+# Define the default_args dictionary
+airflow_default_dag_args = {
+    'owner': 'airflow',
+    'start_date': datetime(2023, 1, 1),  # Update with your desired start date
+    'retries': 0,
+    'retry_delay': timedelta(minutes=5),
+    'email_on_failure': True,
+    'email': 'analytics-data-flow-errors@voltainsite.com'
+}
 
 
 dag = DAG(
