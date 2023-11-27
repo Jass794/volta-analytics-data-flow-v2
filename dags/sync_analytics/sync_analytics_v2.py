@@ -31,7 +31,7 @@ from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalA
     NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
-SCRIPT_VERSION = 1.1
+SCRIPT_VERSION = 1.2
 
 def remove_nan_null(value):
     if value is None:
@@ -58,7 +58,7 @@ def get_harmonic_freq_scan_dict(location_node_id, meta_data_dict):
 
 @logger.catch
 # Load imbalance pairs
-def load_imbalace_location_pairs(node_sn):
+def load_imbalance_location_pairs(node_sn):
     pair = []
     if node_sn == 21044:
         pair = ['5f74cc01abdd8e19a2b2a258.0']
@@ -82,7 +82,7 @@ def load_imbalace_location_pairs(node_sn):
 
 @logger.catch
 # Load imbalance pairs
-def load_imbalace_location_pairs_id(location_node_id):
+def load_imbalance_location_pairs_id(location_node_id):
     pair = []
     if location_node_id == '5f74cbd4abdd8e19a2b2a230.0':  # Diboll
         pair = ['5f74cc01abdd8e19a2b2a258.0']
@@ -270,7 +270,7 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         load_application=portal_location.loadApplication or '---',
         ct_location=portal_location.ctLocation or '---',
         v_tap_location=portal_location.voltageTapLocation or '---',
-        load_imbalance_pairs=load_imbalace_location_pairs_id(portal_location_node_id),
+        load_imbalance_pairs=load_imbalance_location_pairs_id(portal_location_node_id),
         harmonic_frequencies_scan=get_harmonic_freq_scan_dict(portal_location_node_id, harmonics_values),
         tr_i_max=portal_node_configs.tr_i_max,
         active_ia=portal_node_details.activeIa,
@@ -347,10 +347,36 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
                         continue
                     locations_count = locations_count + 1
                     # get the node configs from the latest data file
-                    node_configs = get_latest_datafile(portal_location_node_id, server_path, analytics_api_token_header)
+                    try:
+                        node_configs = get_latest_datafile(portal_location_node_id, server_path, analytics_api_token_header)
+                    except Exception as e:
+                        logger.info(f"Error fetching node configs skip location update.. {location_full_name}")
                     
-                    # Create pydantic node configs model
-                    node_configs = AnalyticsNodeConfigs(**node_configs) if node_configs else AnalyticsNodeConfigs()
+                    if node_configs is None:
+                        node_configs = AnalyticsNodeConfigs()
+                        analytics_present_loc = [loc for loc in analytics_portfolio if loc.node_sn ==  int(portal_location.locationNodeIds[portal_location_node_id])]
+                        # setting the node configs to prev values if we failed to get node configs and np is not default
+                        if analytics_present_loc:
+                            if analytics_present_loc[0].np_current != 0.1:
+                                node_configs = AnalyticsNodeConfigs(i_noise=analytics_present_loc[0].i_noise,
+                                                                    v_noise=analytics_present_loc[0].v_noise,
+                                                                    np_voltage=analytics_present_loc[0].np_voltage,
+                                                                    np_current=analytics_present_loc[0].np_current,
+                                                                    np_frequency=analytics_present_loc[0].np_frequency,
+                                                                    np_hp=analytics_present_loc[0].np_hp,
+                                                                    np_running_speed=analytics_present_loc[0].np_rpm,
+                                                                    np_poles=analytics_present_loc[0].np_poles,
+                                                                    np_rotor_bars=analytics_present_loc[0].np_rotor_bars,
+                                                                    np_stator_slots=analytics_present_loc[0].np_stator_slots,
+                                                                    wc=analytics_present_loc[0].work_cycle,
+                                                                    eq_type=analytics_present_loc[0].eq_type,
+                                                                    eq_type_sub=analytics_present_loc[0].eq_type_sub,
+                                                                    tr_i_max=analytics_present_loc[0].tr_i_max,
+                                                                    np_sf=analytics_present_loc[0].np_sf)
+                                logger.warning(f"Setting value nod configs to prev values for {location_full_name}")
+                    else:
+                        # Create pydantic node configs model
+                        node_configs = AnalyticsNodeConfigs(**node_configs)
                     # Create location according to the analytics location
                     portal_analytics_mapped = map_location_portal_to_analytics(portal_customer,
                                                                                portal_facility,
