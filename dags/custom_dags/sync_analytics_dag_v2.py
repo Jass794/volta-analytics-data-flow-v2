@@ -6,26 +6,17 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from dotenv import load_dotenv
 from datetime import datetime
+from config.configs import airflow_default_dag_args
 
 sys.path.append('/dags/sync_analytics/')
 
 load_dotenv(f'{os.getcwd()}/.env')
 load_dotenv(f"{os.getcwd()}/.{os.getenv('SERVER')}.env")
 
-# Define default_args and DAG
-default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'start_date': datetime(2023, 1, 1),
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 0,
-    'retry_delay': timedelta(minutes=5),
-}
 
 dag = DAG(
     'sync_analytics',
-    default_args=default_args,
+    default_args=airflow_default_dag_args,
     description='Execute sync analytics using bash',
     schedule_interval="*/18 * * * *",
     max_active_runs=1,

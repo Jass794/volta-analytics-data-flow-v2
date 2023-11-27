@@ -2,20 +2,12 @@ import os
 from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from datetime import datetime
-
-# Define the default_args dictionary
-default_args = {
-    'owner': 'airflow',
-    'start_date': datetime(2023, 1, 1),  # Update with your desired start date
-    'retries': 0,
-    'retry_delay': timedelta(minutes=5),
-}
+from config.configs import airflow_default_dag_args
 
 # Instantiate a DAG
 dag = DAG(
     'harmonic_alerts_scan',
-    default_args=default_args,
+    default_args=airflow_default_dag_args,
     description='Create Harmonic Alerts',
     schedule_interval='0 5 * * *',
     max_active_runs=1,

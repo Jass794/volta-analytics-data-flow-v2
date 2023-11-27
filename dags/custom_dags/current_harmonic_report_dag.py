@@ -9,6 +9,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from dotenv import load_dotenv
 from datetime import datetime
+from config.configs import airflow_default_dag_args
+
 
 from reports.hat.daily_hat_scan_v2 import run_hat_scan
 from reports.hat.daily_hat_report_v2 import generate_hat_report
@@ -18,12 +20,7 @@ load_dotenv(f'{os.getcwd()}/.env')
 with DAG(
         dag_id="current_hat_report",
         schedule_interval="50 3 * * *",
-        default_args={
-            "owner": "airflow",
-            "retries": 0,
-            "retry_delay": timedelta(minutes=5),
-            "start_date": datetime(2023, 9, 5)
-        },
+        default_args=airflow_default_dag_args,
         catchup=False,
         max_active_runs=1
 ) as f:

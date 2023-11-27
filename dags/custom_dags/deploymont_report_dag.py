@@ -6,7 +6,8 @@ from datetime import timedelta
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from dotenv import load_dotenv
-from datetime import datetime
+from config.configs import airflow_default_dag_args
+
 
 from reports.deployment.daily_deployment_report import run_deployment_report
 
@@ -15,12 +16,7 @@ load_dotenv(f'{os.getcwd()}/.env')
 with DAG(
         dag_id="deployment_report",
         schedule_interval="25 2 * * *",
-        default_args={
-            "owner": "airflow",
-            "retries": 0,
-            "retry_delay": timedelta(minutes=5),
-            "start_date": datetime(2023, 9, 5)
-        },
+        default_args=airflow_default_dag_args,
         catchup=False,
         max_active_runs=1
 ) as f:

@@ -4,9 +4,9 @@
 /venv/
 /logs/
 /.idea
-/config/
 *.pyc
 /virtual_env/
 .vscode
 *.logs
 *.txt
+/config/airflow.cfg

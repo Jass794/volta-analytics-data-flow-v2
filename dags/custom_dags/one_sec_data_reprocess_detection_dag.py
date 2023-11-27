@@ -3,19 +3,13 @@ from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from datetime import datetime
+from config.configs import airflow_default_dag_args
 
-# Define the default_args dictionary
-default_args = {
-    'owner': 'airflow',
-    'start_date': datetime(2023, 1, 1),  # Update with your desired start date
-    'retries': 0,
-    'retry_delay': timedelta(minutes=5),
-}
 
 # Instantiate a DAG
 dag = DAG(
     'one_sec_reprocess_detection',
-    default_args=default_args,
+    default_args=airflow_default_dag_args,
     description='Analytics Priority Alerts processing',
     schedule_interval='0 0 * * *',  # Set the schedule interval as needed
     max_active_runs=1,

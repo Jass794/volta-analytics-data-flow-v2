@@ -2,20 +2,13 @@ import os
 from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from datetime import datetime
+from config.configs import airflow_default_dag_args
 
-# Define the default_args dictionary
-default_args = {
-    'owner': 'airflow',
-    'start_date': datetime(2023, 1, 1),  # Update with your desired start date
-    'retries': 0,
-    'retry_delay': timedelta(minutes=5),
-}
 
 # Instantiate a DAG
 dag = DAG(
     'dc_v_i_change_scan',
-    default_args=default_args,
+    default_args=airflow_default_dag_args,
     description='Dc V over I change Scan',
     schedule_interval='* 4 * * *',
     max_active_runs=1,
