@@ -1,12 +1,12 @@
 import sys
-sys.path.append('/config')
+sys.path.append('/config/')
 
 import os
 from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from datetime import datetime
-from .config.configs import airflow_default_dag_args
+from config.configs import airflow_default_dag_args
 
 
 # Instantiate a DAG
