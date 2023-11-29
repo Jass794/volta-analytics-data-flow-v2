@@ -313,14 +313,33 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         eq_type=portal_node_configs.eq_type,
         eq_type_sub=portal_node_configs.eq_type_sub,
         np_sf=portal_node_configs.np_sf,
-        facility_location=portal_facility.facilityLocation)
+        facility_location=portal_facility.facilityLocation,
+        events_active=portal_node_configs.events_active)
 
     return analytics_location
 
 
 
+
 @logger.catch
 def sync_analytics(server_path, server, portal_api_token_header, analytics_api_token_header, meta_data_dict):
+
+     # Email on Error in Log file
+    def email_log_on_location_delete(node_sn_list, delete_list):
+        utc_minutes = int(dt.datetime.now(pytz.utc).strftime('%M'))
+        
+        # Get utc datetime
+        utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
+        params = {
+            "username": "notifications@voltainsite.com",
+            "password": os.getenv('GMAIL_APP_PASSWORD'),
+            "to": "jsingh@voltainsite.com",
+            "subject": "[{}] Sync Analytics Location Update - {}".format(server.title(), utc_datetime_email)
+        }
+        notifier = notifiers.get_notifier("gmail")
+        notifier.notify(message=f"{server.title()} Log File attached!\n Node SN Update: {node_sn_list} , delete SN list {delete_list}", **params)
+        return 0
+
     logger.debug("Get Admin Portfolio....")
     # get the portfolio from admin portal
     portal_response = get_portal_portfolio(portal_api_token_header)
@@ -372,7 +391,8 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
                                                                     eq_type=analytics_present_loc[0].eq_type,
                                                                     eq_type_sub=analytics_present_loc[0].eq_type_sub,
                                                                     tr_i_max=analytics_present_loc[0].tr_i_max,
-                                                                    np_sf=analytics_present_loc[0].np_sf)
+                                                                    np_sf=analytics_present_loc[0].np_sf,
+                                                                    events_active=analytics_present_loc[0].events_active)
                                 logger.warning(f"Setting value nod configs to prev values for {location_full_name}")
                     else:
                         # Create pydantic node configs model
@@ -435,6 +455,11 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
             logger.error("error occur because delete count is not legit.. Please verify it")
 
     portal_logs = f"Total location Update {len(location_change_list)}\n Changes = {location_change_list}\n Deleted locations = {delete_locations_list}"
+    if len(location_change_list) > 0 or len(delete_locations_list) > 0:
+        delete_sn = [loc.node_sn for loc in delete_locations_list]
+        update_sn = [loc['node_sn'] for loc in location_change_list]
+        email_log_on_location_delete(update_sn, delete_sn)
+    
     logger.info(portal_logs)
 
 
@@ -483,6 +508,7 @@ def sync_analytics_wrapper(environment):
                 notifier = notifiers.get_notifier("gmail")
                 notifier.notify(message="Log File attached!".format(server.title()), **params)
         return 0
+
 
     # Create directories if they do not exist
     if not os.path.exists(log_dir_path):

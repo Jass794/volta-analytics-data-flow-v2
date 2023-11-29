@@ -105,7 +105,7 @@ class NodeConfigs(BaseModel):
     eq_type_sub: str = 'none'
     tr_i_max: float = 20000.0
     np_sf: float = 1.15
-    events_active: bool = False
+    events_active: Optional[int] = 0
 
     @validator('tr_i_max')
     def make_num_division(cls, val):
@@ -115,6 +115,14 @@ class NodeConfigs(BaseModel):
         else:
             float_removed_num = val
         return float_removed_num
+    
+    @validator('events_active')
+    def make_str_none_to_none(cls, val):
+        # this is implemented because node can't handle floating numbers here we divide it
+        if val == 'none':
+            return None
+        else:
+            return val
 
 
 # Portal response
@@ -268,6 +276,7 @@ class PortfolioV2Model(BaseModel):
     product_type: Optional[str] = None
     under_voltage_threshold: Optional[float] = None
     facility_location: Optional[Tuple[float, float]] = None
+    events_active: Optional[int] = None
 
     class Config:
         orm_mode = True
@@ -357,5 +366,6 @@ class PortfolioModelSyncAnalytics(BaseModel):
     eq_type_sub: Optional[str] = None
     np_sf: Optional[float] = 1.15
     facility_location: Optional[str] = None
+    events_active: Optional[int] = None
 
 
