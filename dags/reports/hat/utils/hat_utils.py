@@ -27,7 +27,7 @@ def get_harmonic_data_v2(location_node_id, start_date, end_date, parameter, api_
         search_harmonic (_type_, optional): _description_. Defaults to None.
 
     Returns:
-        _type_: pd.Datataframe
+        _type_: pd.Dataframe
     """
     url = "https://analytics-ecs-api.voltaenergy.ca/internal/reports/harmonics/harmonic_data/"
     units = 'ms'
@@ -114,8 +114,17 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
     next_harmonic_lf = get_lf_tolerance(harmonic_list[0])
     # Create result dataframe
     result_frame_columns = ['harmonic_lf', 'st_avg', 'lt_avg', 'change', 'impact', 'st_count', 'lt_count', 'total_count', 'lt_harmonic_max_lf_value', 'lt_harmonic_min_lf_value', 'scan_period_type',
-                            'lt_harmonic_max_lf_value_date', 'lt_harmonic_min_lf_value_date']
+                            'lt_harmonic_max_lf_value_date', 'lt_harmonic_min_lf_value_date', 'line_frequency_mode']
     result_records = []
+    # Tolerance range
+    tolerance = 0.5
+    # Round the values to the specified tolerance
+    rounded_values = harmonic_frame[harmonic_frame['line_frequency'] > 5]['line_frequency'].round(decimals=int(-1 * (tolerance.__repr__().count('.') - 1)))
+    # Use value_counts to get the counts of each unique rounded value
+    value_counts = rounded_values.value_counts()
+    # Find the most frequently occurring value
+    most_occurred_line_freq = value_counts.idxmax()
+
     # Loop through harmonic list to find impact and percent change
     for harmonic_lf in harmonic_list:
         if harmonic_lf == 1:
@@ -132,7 +141,7 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
             (harmonic_frame['harmonic_freq'].lt(harmonic_lf + tolerance))
             ].copy()
         # Group by time and choose max if multiple harmonics are found within a tolerance
-        given_harmonic_frame = given_harmonic_frame.sort_values(by='harmonic_value', ascending=False).drop_duplicates('time', keep='first').reset_index(drop=True)
+        given_harmonic_frame = given_harmonic_frame.sort_values(by='harmonic_value', ascending=False).drop_duplicates('time', keep='first').reset_index(drop=True)        
         # Group by time and choose max if multiple harmonics are found within a tolerance
         given_harmonic_frame.index = pd.to_datetime(given_harmonic_frame['time'])
         given_harmonic_frame = given_harmonic_frame[['harmonic_value']]
@@ -209,7 +218,8 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
             'lt_harmonic_min_lf_value': lt_harmonic_min_lf_value,
             'lt_harmonic_max_lf_value_date': str(harmonic_resampled_df[harmonic_resampled_df['harmonic_value'] == lt_harmonic_max_lf_value].index[0].date()) + ' UTC',
             'lt_harmonic_min_lf_value_date': str(harmonic_resampled_df[harmonic_resampled_df['harmonic_value'] == lt_harmonic_min_lf_value].index[0].date()) + ' UTC',
-            'scan_period_type': scan_type
+            'scan_period_type': scan_type,
+            'line_frequency_mode': round(most_occurred_line_freq, 3)
         }
 
         # Add to result records
@@ -310,7 +320,6 @@ class HatScanProcessor:
                                                                scan_type='short_term',
                                                                location_dict=dict(self.location))
             processed_daily_st_scan = pd.DataFrame(processed_daily_st_scan)
-
         if perform_lt_scan:
             # Process daily scan frame for long term
             processed_daily_scan_long_term = process_harmonic_data_v4(harmonic_frame=harmonics_df.copy(),
@@ -323,6 +332,7 @@ class HatScanProcessor:
                                                                       location_dict=dict(self.location))
 
             processed_daily_scan_long_term = pd.DataFrame(processed_daily_scan_long_term)
+
         self.harmonic_result_df = pd.concat([self.harmonic_result_df,processed_daily_st_scan, processed_daily_scan_long_term], ignore_index=True)
         return self.harmonic_result_df
         

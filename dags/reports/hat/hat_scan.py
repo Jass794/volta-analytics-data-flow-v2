@@ -10,7 +10,7 @@ from functools import partial
 from loguru import logger
 import time
 
-VERSION = 1.1
+VERSION = 1.2
 
 def process_harmonics(location, api_token, signature_harmonics, user_inputs):
     report_configs = HatConfigs.get_hat_configs(location=location)
@@ -50,7 +50,7 @@ def process_harmonics(location, api_token, signature_harmonics, user_inputs):
                     if not signature_harmonic_data.empty:
                         hat_processor.process_hat_scan(signature_harmonic_data)
         # Get the processed result
-        hat_result = hat_processor.get_result()                
+        hat_result = hat_processor.get_result()
         # post the results to the DB
         if not hat_result.empty and not user_inputs.debug:
             PostHatScanData.post_data(hat_scan_df=hat_result,
@@ -81,6 +81,7 @@ if __name__ == "__main__":
                           and location.work_cycle == False]
     # get the harmonic signatures we use production
     signature_harmonics = get_harmonic_signatures(api_token=api_token, server='')
+    # process_harmonics(user_inputs=user_inputs, api_token=api_token, signature_harmonics=signature_harmonics,location=locations_portfolio[0])
     with Pool(4) as pool:
         status = pool.map(partial(process_harmonics,user_inputs=user_inputs, api_token=api_token, signature_harmonics=signature_harmonics), locations_portfolio)
     total_report_time =  round(time.time() -  process_start_time,2) 
