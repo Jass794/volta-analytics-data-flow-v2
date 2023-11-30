@@ -26,7 +26,7 @@ dag = DAG(
     'sync_analytics',
     default_args=airflow_default_dag_args,
     description='Execute sync analytics using bash',
-    schedule_interval="*/5 * * * *",
+    schedule_interval="*/10 * * * *",
     max_active_runs=1,
     catchup=False,
 )
