@@ -2,7 +2,7 @@
 This script sync analytics Portfolio from the admin portfolio.
 
 Author: Jaspreet Singh
-Version: 1
+Version: 1.3
 
 Usage:
     python sync_analytics [production|staging]
@@ -31,7 +31,7 @@ from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalA
     NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
-SCRIPT_VERSION = 1.2
+SCRIPT_VERSION = 1.3
 
 def remove_nan_null(value):
     if value is None:
@@ -322,22 +322,21 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
 
 
 @logger.catch
-def sync_analytics(server_path, server, portal_api_token_header, analytics_api_token_header, meta_data_dict):
+def sync_analytics(server_path, server, portal_api_token_header, analytics_api_token_header, meta_data_dict, log_file_path):
 
      # Email on Error in Log file
-    def email_log_on_location_delete(node_sn_list, delete_list):
-        utc_minutes = int(dt.datetime.now(pytz.utc).strftime('%M'))
-        
+    def email_log_on_location_update(node_sn_list, delete_list, log_file_path):        
         # Get utc datetime
         utc_datetime_email = str(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:00'))
         params = {
+            "attachments":[log_file_path],
             "username": "notifications@voltainsite.com",
             "password": os.getenv('GMAIL_APP_PASSWORD'),
             "to": "jsingh@voltainsite.com",
             "subject": "[{}] Sync Analytics Location Update - {}".format(server.title(), utc_datetime_email)
         }
         notifier = notifiers.get_notifier("gmail")
-        notifier.notify(message=f"{server.title()} Log File attached!\n Node SN Update: {node_sn_list} , delete SN list {delete_list}", **params)
+        notifier.notify(message=f"{server.title()} Log File attached!\nNode SN Update: {node_sn_list}\nDelete SN list {delete_list}", **params)
         return 0
 
     logger.debug("Get Admin Portfolio....")
@@ -458,7 +457,7 @@ def sync_analytics(server_path, server, portal_api_token_header, analytics_api_t
     if len(location_change_list) > 0 or len(delete_locations_list) > 0:
         delete_sn = [loc.node_sn for loc in delete_locations_list]
         update_sn = [loc['node_sn'] for loc in location_change_list]
-        email_log_on_location_delete(update_sn, delete_sn)
+        email_log_on_location_update(update_sn, delete_sn, log_file_path)
     
     logger.info(portal_logs)
 
@@ -483,7 +482,7 @@ def sync_analytics_wrapper(environment):
 
     # create log dir path
     log_dir_path = f'{os.getcwd()}/.logs/sync-analytics/{server}/'
-
+    log_file_path = log_dir_path + log_file_name
     # Email on Error in Log file
     def email_log_on_error(log_filepath):
         utc_minutes = int(dt.datetime.now(pytz.utc).strftime('%M'))
@@ -514,8 +513,7 @@ def sync_analytics_wrapper(environment):
     if not os.path.exists(log_dir_path):
         os.makedirs(log_dir_path)
 
-    process_logger = logger.add(
-        log_dir_path + log_file_name, enqueue=True,
+    process_logger = logger.add(log_file_path, enqueue=True,
         format="{time:YYYY-MM-DD HH:mm:ss!UTC} | {level} | {function}:{line} | {message}",
         compression=email_log_on_error
     )
@@ -526,7 +524,7 @@ def sync_analytics_wrapper(environment):
         # Close file
         f.close()
 
-    sync_analytics(server_path, server, portal_api_token_header, analytics_api_token_header, meta_data_dict)
+    sync_analytics(server_path, server, portal_api_token_header, analytics_api_token_header, meta_data_dict, log_file_path)
 
 
 if __name__ == '__main__':
