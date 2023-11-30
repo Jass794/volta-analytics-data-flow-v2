@@ -513,13 +513,19 @@ def sync_analytics_wrapper(environment):
     if not os.path.exists(log_dir_path):
         os.makedirs(log_dir_path)
 
+<<<<<<< Updated upstream
     process_logger = logger.add(log_file_path, enqueue=True,
         format="{time:YYYY-MM-DD HH:mm:ss!UTC} | {level} | {function}:{line} | {message}",
+=======
+    process_logger = logger.add(
+        log_dir_path + log_file_name, enqueue=True,
+        format=f"{time:YYYY-MM-DD HH:mm:ss!UTC} | {level} | {function}:{line} | {message}",
+>>>>>>> Stashed changes
         compression=email_log_on_error
     )
     logger.info(f"Sync Analytics Init Version:{SCRIPT_VERSION}")
     # Read Harmonic Frequency JSON file
-    with open(f'./harmonic_freq_scan_meta.json', 'r') as f:
+    with open('./harmonic_freq_scan_meta.json', 'r') as f:
         meta_data_dict = json.load(f)
         # Close file
         f.close()
