@@ -97,7 +97,7 @@ def hat_scan(location_dict, report_date, report_type, api_token):
             processed_daily_st_scan = process_harmonic_data_v4(harmonic_frame=daily_scan_frame,
                                                                harmonic_list=sorted_harmonic_list,
                                                                st_avg_days=st_scan_st_avg_days,
-                                                               lt_avg_days=st_scan_lt_avg_days,
+                                                               lt_avg_days=st_scan_lt_avg_days,   
                                                                max_peak_days=st_scan_look_back_days,
                                                                scan_date=scan_end_day_start_time,
                                                                scan_type='short_term',
