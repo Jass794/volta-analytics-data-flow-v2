@@ -76,6 +76,7 @@ class NodeDetails(BaseModel):
     overCurrentThreshold: float
     overVoltageThreshold: float
     pauseNotifications: bool
+    pauseAnalyticsNotifications: bool
     serialNumber: str
     showRawPower: bool
     type: str

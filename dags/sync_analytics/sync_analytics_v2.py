@@ -2,7 +2,7 @@
 This script sync analytics Portfolio from the admin portfolio.
 
 Author: Jaspreet Singh
-Version: 1.3
+Version: 1.4
 
 Usage:
     python sync_analytics [production|staging]
@@ -31,7 +31,7 @@ from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalA
     NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
-SCRIPT_VERSION = 1.3
+SCRIPT_VERSION = 1.4
 
 def remove_nan_null(value):
     if value is None:
@@ -306,7 +306,7 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         notify_on_current_above_noise=portal_node_details.notifyOnCurrentAboveNoise,
         over_current_threshold=portal_node_details.overCurrentThreshold,
         over_voltage_threshold=portal_node_details.overVoltageThreshold,
-        pause_notifications=portal_node_details.pauseNotifications,
+        pause_notifications=portal_node_details.pauseAnalyticsNotifications,
         product_type=portal_node_details.type,
         under_voltage_threshold=portal_node_details.underVoltageThreshold,
         alert_library_flags=portal_location.faultLibraryAlertFlags,
