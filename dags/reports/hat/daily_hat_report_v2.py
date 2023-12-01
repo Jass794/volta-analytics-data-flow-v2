@@ -40,6 +40,8 @@ def apply_harmonics_filter_tolerance(report_hat_frame, tolerance=10):
     report_harmonics = report_hat_frame.reset_index(drop=True)
     # LT Avg greater than 0.01
     report_harmonics = report_harmonics[report_harmonics['st_avg'] >= tolerance]
+    # Filter out harmonic from 0.99 to 1.01
+    report_harmonics = report_harmonics[~report_harmonics['harmonic_lf'].between(0.99, 1.01)]
 
     return report_harmonics.reset_index(drop=True)
 
