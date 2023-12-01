@@ -108,7 +108,7 @@ def hat_report(location_df, report_date, report_type, api_token):
         'lt_avg', 'st_avg', 'change', 'lt_count', 'st_count',
         'total_count', 'location_node_id', 'facility_id', 'customer_id',
         'lt_harmonic_max_lf_value', 'lt_harmonic_min_lf_value',
-        'lt_harmonic_max_lf_value_date', 'lt_harmonic_min_lf_value_date', 'starter', 'scan_period_type'
+        'lt_harmonic_max_lf_value_date', 'lt_harmonic_min_lf_value_date', 'starter', 'scan_period_type', 'line_frequency_mode'
     ]
 
     report_harmonics = report_harmonics[ordered_columns]
