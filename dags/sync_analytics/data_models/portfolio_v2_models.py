@@ -77,6 +77,7 @@ class NodeDetails(BaseModel):
     overVoltageThreshold: float
     pauseNotifications: bool
     pauseAnalyticsNotifications: bool
+    pauseConnectivityNotifications: bool
     serialNumber: str
     showRawPower: bool
     type: str
@@ -274,6 +275,7 @@ class PortfolioV2Model(BaseModel):
     over_current_threshold: Optional[float] = None
     over_voltage_threshold: Optional[float] = None
     pause_notifications: Optional[bool] = None
+    pause_connectivity_notifications: Optional[bool] = None
     product_type: Optional[str] = None
     under_voltage_threshold: Optional[float] = None
     facility_location: Optional[Tuple[float, float]] = None
@@ -360,6 +362,7 @@ class PortfolioModelSyncAnalytics(BaseModel):
     over_current_threshold: Optional[float] = None
     over_voltage_threshold: Optional[float] = None
     pause_notifications: Optional[bool] = None
+    pause_connectivity_notifications: Optional[bool] = None
     product_type: Optional[str] = None
     under_voltage_threshold: Optional[float] = None
     alert_library_flags: Optional[FaultLibraryAlertFlags] = None
