@@ -114,7 +114,7 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
     next_harmonic_lf = get_lf_tolerance(harmonic_list[0])
     # Create result dataframe
     result_frame_columns = ['harmonic_lf', 'st_avg', 'lt_avg', 'change', 'impact', 'st_count', 'lt_count', 'total_count', 'lt_harmonic_max_lf_value', 'lt_harmonic_min_lf_value', 'scan_period_type',
-                            'lt_harmonic_max_lf_value_date', 'lt_harmonic_min_lf_value_date', 'line_frequency_mode']
+                            'lt_harmonic_max_lf_value_date', 'lt_harmonic_min_lf_value_date', 'line_frequency_mode', 'recent_st_avg']
     result_records = []
     # Tolerance range
     tolerance = 0.5
@@ -188,21 +188,11 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
         harmonic_resampled_df = given_harmonic_frame[(given_harmonic_frame.index >= lt_strip_start_date) & 
                                                   (given_harmonic_frame.index < st_slicing_date)].resample('12H').mean().dropna()
         # print(f"first elemnt of peak selection  frame {harmonic_resampled_df.head(1)} \n last elemnt {harmonic_resampled_df.tail(1)}")
+        six_hr_resampled = given_harmonic_frame.resample('6H').mean().dropna()
+        recent_harmonic_avg = six_hr_resampled.loc[six_hr_resampled.index.max(),'harmonic_value']
 
         lt_harmonic_max_lf_value = harmonic_resampled_df['harmonic_value'].max()
         lt_harmonic_min_lf_value = harmonic_resampled_df['harmonic_value'].min()
-        # todo: remove commented code
-        # fig = make_subplots(rows=2, cols=1, subplot_titles=[f'Ia - {harmonic_lf} change {percent_change}', 'trend'])
-        #
-        # # Add the raw data as scatter plot
-        # fig.add_trace(go.Scatter(x=given_harmonic_frame.index, y=given_harmonic_frame['harmonic_value'], mode='lines', name=f'Raw data {harmonic_lf}'), row=1, col=1)
-        #
-        # # Add the raw data as scatter plot
-        # fig.add_trace(go.Scatter(x=harmonic_resampled_df.index, y=harmonic_resampled_df['harmonic_value'], mode='lines', name='log trans'), row=2, col=1)
-        #
-        # # Add the raw data as scatter plot
-        # # fig.add_trace(go.Scatter(x=trend.index, y=trend, mode='lines', name='trend'), row=2, col=1)
-        # fig.show()
 
         # Create pandas series
         harmonic_change_record = {
@@ -219,7 +209,8 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
             'lt_harmonic_max_lf_value_date': str(harmonic_resampled_df[harmonic_resampled_df['harmonic_value'] == lt_harmonic_max_lf_value].index[0].date()) + ' UTC',
             'lt_harmonic_min_lf_value_date': str(harmonic_resampled_df[harmonic_resampled_df['harmonic_value'] == lt_harmonic_min_lf_value].index[0].date()) + ' UTC',
             'scan_period_type': scan_type,
-            'line_frequency_mode': round(most_occurred_line_freq, 3)
+            'line_frequency_mode': round(most_occurred_line_freq, 3),
+            'recent_st_avg': round(recent_harmonic_avg, 3)
         }
 
         # Add to result records
