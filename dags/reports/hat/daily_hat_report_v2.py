@@ -120,7 +120,7 @@ def hat_report(location_df, report_date, report_type, api_token):
     report_tolerance_frame = report_tolerance_frame.sort_values(by=['harmonic_lf'], ascending=True).reset_index(drop=True)
   
     # Insert to Production DB
-    # report_contents = insert_hat_report(report_date, hat_type, report_harmonics, report_tolerance_frame, '/internal', api_token)
+    report_contents = insert_hat_report(report_date, hat_type, report_harmonics, report_tolerance_frame, '/internal', api_token)
     # Insert to Staging DB
     report_contents = insert_hat_report(report_date, hat_type, report_harmonics, report_tolerance_frame ,'/internal/staging', api_token)
     # Add message to report_contents
@@ -290,7 +290,7 @@ def generate_hat_report(report_type, env='staging', debug=False):
     utc_date = str((dt.datetime.utcnow() - dt.timedelta(days=1)).strftime('%Y-%m-%d'))
     hat_report_dict = hat_report(locations_df, utc_date, report_type.lower(),api_token)
     # Email HAT Report
-    # email_hat_report(hat_report_dict, report_type.title(), email_app_pass)
+    email_hat_report(hat_report_dict, report_type.title(), email_app_pass)
 
 
 if __name__ == "__main__":
