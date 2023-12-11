@@ -31,7 +31,7 @@ from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalA
     NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
-SCRIPT_VERSION = 1.5
+SCRIPT_VERSION = 1.6
 
 def remove_nan_null(value):
     if value is None:
@@ -315,7 +315,9 @@ def map_location_portal_to_analytics(portal_customer: PortalApiModel,
         np_sf=portal_node_configs.np_sf,
         facility_location=portal_facility.facilityLocation,
         events_active=portal_node_configs.events_active,
-        pause_connectivity_notifications=portal_node_details.pauseConnectivityNotifications)
+        pause_connectivity_notifications=portal_node_details.pauseConnectivityNotifications,
+        show_raw_power=portal_node_details.showRawPower,
+        division=portal_facility.division)
 
     return analytics_location
 

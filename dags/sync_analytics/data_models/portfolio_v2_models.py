@@ -371,5 +371,7 @@ class PortfolioModelSyncAnalytics(BaseModel):
     np_sf: Optional[float] = 1.15
     facility_location: Optional[str] = None
     events_active: Optional[int] = None
+    show_raw_power: Optional[bool] = None
+    division: Optional[str] = None
 
 
