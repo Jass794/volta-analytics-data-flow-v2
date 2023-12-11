@@ -17,6 +17,23 @@ import os
 change_impace_threshold = 50
 
 
+# apply the threshold based on lt_avg value
+def apply_threshold(row):
+    lt_avg = row['lt_avg']
+    percent_change = row['change']
+    if 0 <= lt_avg <= 1:
+        return percent_change >= 50
+    elif 1 < lt_avg <= 5:
+        return percent_change >= 30
+    elif 5 < lt_avg <= 10:
+        return percent_change >= 20
+    elif lt_avg > 10:
+        return percent_change >= 15
+    else:
+        return False  # Handle other cases if necessary
+
+
+
 # Apply harmonic filter on hat report
 def apply_harmonics_filter_v2(report_hat_frame):
     # Reset Index
@@ -24,7 +41,7 @@ def apply_harmonics_filter_v2(report_hat_frame):
     # LT Avg greater than 0.01
     report_harmonics = report_harmonics[report_harmonics['lt_avg'] > 0.01]
     # Keep LF only if absolute impact or change is > 50
-    report_harmonics_upper = report_harmonics[report_harmonics['change'] > 50]
+    report_harmonics_upper = report_harmonics[report_harmonics.apply(apply_threshold, axis=1)]
     report_harmonics_lower = report_harmonics[report_harmonics['change'] < -50]
 
     report_harmonics_upper = report_harmonics_upper[report_harmonics_upper['st_avg'] > report_harmonics_upper['lt_harmonic_max_lf_value']]
