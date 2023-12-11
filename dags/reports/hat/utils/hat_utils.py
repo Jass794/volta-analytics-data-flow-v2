@@ -252,12 +252,19 @@ def get_user_input_from_args() -> UserInput:
 
     utc_date_index = args.index('-sd') + 1 if '-sd' in args else None
     utc_date = args[utc_date_index] if utc_date_index is not None else (dt.datetime.utcnow() - dt.timedelta(days=1)).strftime('%Y-%m-%d')
+    node_sn = int(args[args.index('-n') + 1]) if '-n' in args else None
+    user_input_harmonic = float(args[args.index('-h') + 1]) if '-n' in args else None
 
     if not is_valid_date_format(utc_date):
         print("Invalid date format. Please enter a date in the format YYYY-MM-DD.")
         sys.exit(1)
 
-    return UserInput(report_date=utc_date, environment=environment, report_type=report_type, debug=debug)
+    return UserInput(report_date=utc_date, 
+                     environment=environment, 
+                     report_type=report_type,
+                     node_sn=node_sn, 
+                     user_input_harmonic=user_input_harmonic, 
+                     debug=debug)
 
 
 class HatScanProcessor:

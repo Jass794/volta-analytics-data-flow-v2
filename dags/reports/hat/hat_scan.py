@@ -1,4 +1,5 @@
 from reports.hat.utils.hat_utils import get_user_input_from_args, HatScanProcessor, PostHatScanData, get_harmonic_data_v2
+from reports.hat.models.user_input import UserInput
 from reports.utils.common import get_analytics_portfolio
 from dotenv import load_dotenv
 from reports.hat.config.config import HatConfigs
@@ -9,10 +10,13 @@ from concurrent.futures import ProcessPoolExecutor as Pool
 from functools import partial
 from loguru import logger
 import time
+from reports.hat.utils.hat_utils import get_lf_tolerance
+import pandas as pd
 
-VERSION = 1.3
 
-def process_harmonics(location, api_token, signature_harmonics, user_inputs):
+VERSION = 1.4
+
+def process_harmonics(location, api_token, signature_harmonics, user_inputs:UserInput):
     report_configs = HatConfigs.get_hat_configs(location=location)
     # data_end date is report_date
     data_end_date = dt.datetime.strptime(user_inputs.report_date, '%Y-%m-%d').date()
@@ -26,6 +30,14 @@ def process_harmonics(location, api_token, signature_harmonics, user_inputs):
                                             parameter=user_inputs.report_type,
                                             api_token=api_token,
                                             product_type=location.product_type)
+    
+    if user_inputs.user_input_harmonic is not None:
+        tolerance = get_lf_tolerance(user_inputs.user_input_harmonic)
+        harmonic_dump_df = harmonic_dump_df[
+            (harmonic_dump_df['harmonic_freq'].ge(user_inputs.user_input_harmonic - tolerance)) &
+            (harmonic_dump_df['harmonic_freq'].lt(user_inputs.user_input_harmonic + tolerance))
+            ].copy()
+    
     if not harmonic_dump_df.empty:
         hat_processor = HatScanProcessor(report_date=user_inputs.report_date,
                                         hat_configs=report_configs,
@@ -51,6 +63,10 @@ def process_harmonics(location, api_token, signature_harmonics, user_inputs):
                         hat_processor.process_hat_scan(signature_harmonic_data)
         # Get the processed result
         hat_result = hat_processor.get_result()
+        if user_inputs.debug:
+            pd.set_option('display.max_columns', None)
+            print(hat_result)
+
         # # post the results to the DB
         if not hat_result.empty and not user_inputs.debug:
             PostHatScanData.post_data(hat_scan_df=hat_result,
@@ -79,6 +95,11 @@ if __name__ == "__main__":
                           location.current_deployment_status == 'Deployed'
                           and location.eq_type != 'dc'
                           and location.work_cycle == False]
+    n_process = 4
+    # logic for custom scan
+    if user_inputs.node_sn is not None and user_inputs.user_input_harmonic is not None:
+        locations_portfolio = [location for location in locations_portfolio if location.node_sn == user_inputs.node_sn]
+        n_process = 1
     # get the harmonic signatures we use production
     signature_harmonics = get_harmonic_signatures(api_token=api_token, server='')
     # process_harmonics(user_inputs=user_inputs, api_token=api_token, signature_harmonics=signature_harmonics,location=locations_portfolio[0])
