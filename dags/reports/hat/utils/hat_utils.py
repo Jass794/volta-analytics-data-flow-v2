@@ -75,7 +75,9 @@ def get_harmonic_data_v2(location_node_id, start_date, end_date, parameter, api_
 
 # LF Tolerance table
 def get_lf_tolerance(harmonic_freq_lf):
-    if 0.0 <= harmonic_freq_lf <= 3.0:
+    if (0.0 <= harmonic_freq_lf <= 0.99) or (1.01 <= harmonic_freq_lf <= 3):
+        tolerance = 0.008
+    elif 0.99 <= harmonic_freq_lf <= 1.01:
         tolerance = 0.005
     elif 3.0 < harmonic_freq_lf <= 5.0:
         tolerance = 0.01
@@ -125,6 +127,13 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
     # Find the most frequently occurring value
     most_occurred_line_freq = value_counts.idxmax()
 
+    if scan_type == 'short_term':
+        st_min_files_count_threshold = 5
+        lt_min_files_count_threshold = 72
+    else:
+        st_min_files_count_threshold = 15
+        lt_min_files_count_threshold = 75
+
     # Loop through harmonic list to find impact and percent change
     for harmonic_lf in harmonic_list:
         if harmonic_lf == 1:
@@ -164,7 +173,7 @@ def process_harmonic_data_v4(harmonic_frame, harmonic_list, st_avg_days, lt_avg_
         st_harmonics_frame = given_harmonic_frame[(given_harmonic_frame.index >= st_slicing_date)]
 
         # Skip if st/ lt file count is less than 15/75 # todo: move this count ot variable
-        if (len(st_harmonics_frame.index) < 15 or len(lt_harmonics_frame.index) < 75) and location_dict['product_type'] == 'Node' :
+        if (len(st_harmonics_frame.index) < st_min_files_count_threshold or len(lt_harmonics_frame.index) < lt_min_files_count_threshold) and location_dict['product_type'] == 'Node' :
             print(f'Skipping due to count is not desired st count {len(st_harmonics_frame.index)}, lt count {len(lt_harmonics_frame.index)}  of Harmonic LF {harmonic_lf}')
             continue
     
