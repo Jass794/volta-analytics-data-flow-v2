@@ -37,6 +37,7 @@ class FaultLibraryAlertFlags(BaseModel):
     event_distribution_ground_fault_alert: Optional[bool] = False
     transient_distribution_ground_fault_alert: Optional[bool] = False
     unusual_stop_event_alert: Optional[bool] = False
+    sel_power_drop_alert: Optional[bool] = False
 
 
 

@@ -31,7 +31,7 @@ from data_models.portfolio_v2_models import PortfolioModelSyncAnalytics, PortalA
     NodeDetails as PortalNodeDetails, \
     NodeConfigs as AnalyticsNodeConfigs
 
-SCRIPT_VERSION = 1.6
+SCRIPT_VERSION = 1.7
 
 def remove_nan_null(value):
     if value is None:
