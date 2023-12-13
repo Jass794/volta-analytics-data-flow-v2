@@ -22,13 +22,9 @@ dag = DAG(
     max_active_runs=1,
     catchup=False)
 
-# Set the virtual environment path
-venv_path = "/opt/airflow/virtual_env/volta-analytics-data-flow_venv"
-requirements_path = "/opt/airflow/dags/volta-analytics-data-flow/requirements.txt"
-
 
 # Run the example script
-process_standard_alerts_task = BashOperator(
+logs_clean_up_task = BashOperator(
     task_id='process_standard_alerts',
     bash_command=f"cd /opt/airflow/dags/volta-analytics-data-flow && python manae_logs.py",
     dag=dag,
@@ -36,4 +32,4 @@ process_standard_alerts_task = BashOperator(
 )
 
 # Set task dependencies
-process_standard_alerts_task
+logs_clean_up_task
