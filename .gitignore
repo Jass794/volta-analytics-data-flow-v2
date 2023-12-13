@@ -10,3 +10,4 @@
 *.logs
 *.txt
 /config/airflow.cfg
+airflow.cfg
