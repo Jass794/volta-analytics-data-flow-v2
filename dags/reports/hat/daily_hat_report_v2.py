@@ -42,9 +42,10 @@ def apply_harmonics_filter_v2(report_hat_frame):
     report_harmonics = report_harmonics[report_harmonics['lt_avg'] > 0.01]
     # Keep LF only if absolute impact or change is > 50
     report_harmonics_upper = report_harmonics[report_harmonics.apply(apply_threshold, axis=1)]
-    report_harmonics_lower = report_harmonics[report_harmonics['change'] < -50]
-
-    report_harmonics_upper = report_harmonics_upper[report_harmonics_upper['st_avg'] > report_harmonics_upper['lt_harmonic_max_lf_value']]
+    if not report_harmonics_upper.empty:
+        report_harmonics_upper = report_harmonics_upper[report_harmonics_upper['st_avg'] > report_harmonics_upper['lt_harmonic_max_lf_value']]
+   
+    report_harmonics_lower = report_harmonics[report_harmonics['change'] < -50] 
     report_harmonics_lower = report_harmonics_lower[report_harmonics_lower['st_avg'] < report_harmonics_lower['lt_harmonic_min_lf_value']]
 
     report_harmonics = pd.concat([report_harmonics_upper, report_harmonics_lower], ignore_index=True)
