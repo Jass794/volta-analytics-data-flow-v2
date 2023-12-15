@@ -3,6 +3,7 @@ from email.mime.text import MIMEText
 from dotenv import load_dotenv
 from reports.utils.common import *
 from reports.utils.trending import *
+from typing import List
 from loguru import logger
 import datetime as dt
 import notifiers
@@ -15,7 +16,7 @@ import os
 
 @logger.catch
 # Trending Report
-def trending_report(locations_df, api_token):
+def trending_report(locations: List[PortfolioV2Model], api_token):
     # Generate utc report date
     report_date = (dt.datetime.utcnow() - dt.timedelta(days=1)).date()
     report_date = str(report_date.strftime('%Y-%m-%d'))
@@ -29,32 +30,24 @@ def trending_report(locations_df, api_token):
             'absolute_threshold', 'location_node_id', 'facility_id', 'customer_id'
         ]
     )
-    # Loop through unique location_node_id
-    for location_node_id in locations_df['location_node_id'].unique():
-        # Get row of location_node_id
-        row = locations_df[locations_df['location_node_id'] == location_node_id]
-        # Create Equipment name and location if
-        node_sn = int(row['node_sn'].values[0])
-        location_name = str(row['location_name'].values[0])
-        facility_name = str(row['facility_name'].values[0])
-        facility_id = str(row['facility_id'].values[0])
-        customer_name = str(row['customer_name'].values[0])
-        customer_id = str(row['customer_id'].values[0])
+    # Loop through locations
+    for location in locations:
+    
         # Location_details
         location_details = {
-            'node_sn': node_sn,
-            'location_node_id': location_node_id,
-            'facility_id': facility_id,
-            'customer_id': customer_id,
-            'customer_name': customer_name,
-            'location_name': location_name,
-            'facility_name': facility_name
+            'node_sn': location.node_sn,
+            'location_node_id': location.location_node_id,
+            'facility_id': location.facility_id,
+            'customer_id': location.customer_id,
+            'customer_name': location.customer_name,
+            'location_name': location.location_name,
+            'facility_name': location.facility_name
         }
         # Create log_name
-        log_name = str(location_details['node_sn']) + ' - ' + location_details['location_name'] + ' - ' + location_details['facility_name']
+        log_name = f"{location.node_sn} - {location.location_name} - {location.facility_name}"
         logger.info('Equipment: {}'.format(log_name))
         # Get 60 day average frame
-        avg_frame = get_trending_df(api_token, location_node_id, report_date)
+        avg_frame = get_trending_df(api_token, location.location_node_id, report_date)
         if avg_frame.empty:
             continue
         else:
@@ -265,23 +258,14 @@ def run_trending_report(env='staging'):
         )
 
     # Get Locations
-    locations_df = get_node_df(api_token)
-    if not locations_df.empty:
-        # Filter locations where Events Report needs to run
-        locations_df = locations_df[
-            (locations_df.node_details.apply(lambda x: x['deploymentIssue'] == False)) &
-            (locations_df.node_details.apply(lambda x: x['currentDeploymentStatus'] == 'Deployed'))
-            ]
-        # Remove coustomer from scan
-        locations_df = locations_df[
-            (~locations_df['customer_code'].isin(['atha', 'lab', 'cestx', 'ice']))
-        ]
-        trend_report_dict = trending_report(locations_df,api_token)
-        # Email HAT Report
-        email_trending_report(trend_report_dict, email_app_pass)
-    else:
-        process_logger.error('No locations found')
-        sys.exit(1)
+    locations = get_analytics_portfolio(server_path='', analytics_api_token=api_token)
+    locations = [location for location in locations if location.deployment_issue == False and 
+                                                        location.current_deployment_status == 'Deployed'
+                                                        and location.customer_code in ['gp']]
+    trend_report_dict = trending_report(locations,api_token)
+    # Email HAT Report
+    email_trending_report(trend_report_dict, email_app_pass)
+
 
 
 if __name__ == "__main__":
