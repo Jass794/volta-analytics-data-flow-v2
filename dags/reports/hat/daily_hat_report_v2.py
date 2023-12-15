@@ -14,8 +14,6 @@ import sys
 import os
 
 
-change_impace_threshold = 50
-
 
 # apply the threshold based on lt_avg value
 def apply_threshold(row):
