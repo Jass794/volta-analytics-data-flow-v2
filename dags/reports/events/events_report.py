@@ -2,11 +2,13 @@ from email.mime.multipart import MIMEMultipart
 from billiard.pool import Pool
 from multiprocessing import cpu_count
 from email.mime.text import MIMEText
-from types import MappingProxyType
+from typing import List
 from functools import partial
 from dotenv import load_dotenv
 from loguru import logger
 from .utils import *
+from ..utils.common import get_analytics_portfolio
+from volta_analytics_db_models.tabels.portfolio_v2_models import PortfolioV2Model
 import datetime as dt
 import numpy as np
 import notifiers
@@ -25,14 +27,13 @@ outlier_lt_days = 60
 
 
 @logger.catch
-async def process_per_location_events_data(location_dict, report_date, report_datetime, api_token):
-    # Create and immutable dict of location details using MappingProxyType
-    location_details = MappingProxyType(location_dict)
-    location_banner = str(location_details['location_name'] + ' - SN:' + str(location_details['node_sn']) + ' - ' + location_details['facility_name'] + ' - ' + str(report_date))
+async def process_per_location_events_data(location: PortfolioV2Model, report_date, report_datetime, api_token):
+    location_banner = f"{location.location_name} - SN: {location.node_sn} - {location.facility_name} - {report_date}"
+
     logger.info('Processing Events Data for ' + location_banner)
     location_event_report = {
         'time': str(report_datetime),
-        'location_node_id': location_details['location_node_id'],
+        'location_node_id': location.location_node_id,
         'node_online': False,
         'equipment_active': True,
         'no_events': {
@@ -54,7 +55,7 @@ async def process_per_location_events_data(location_dict, report_date, report_da
     # data_start date will be lt_avg_days days from start_date
     data_start_date = data_end_date - dt.timedelta(days=lt_avg_days)
     # Get Events for Location
-    events_count_frame = await get_events_count_24h(location_details['location_node_id'], data_start_date, data_end_date, api_token)
+    events_count_frame = await get_events_count_24h(location.location_node_id, data_start_date, data_end_date, api_token)
     if not events_count_frame.empty:
         # Means was online in last lt_avg_days days
         location_event_report['node_online'] = True
@@ -91,7 +92,7 @@ async def process_per_location_events_data(location_dict, report_date, report_da
                 event_matrix = pd.merge(st_avg_count_frame, lt_avg_count_frame, on='event_type', how='outer', suffixes=('_st_avg', '_lt_avg'))
                 event_matrix = event_matrix.fillna(0)
             # Add location_node_id to event_matrix
-            event_matrix['location_node_id'] = location_details['location_node_id']
+            event_matrix['location_node_id'] = location.location_node_id
             # Rename columns
             event_matrix = event_matrix.rename(columns={
                 'event_count_st_avg': 'st_avg_count',
@@ -120,7 +121,7 @@ async def process_per_location_events_data(location_dict, report_date, report_da
             location_event_report['events_trending'] = event_matrix.to_dict('records')
 
     # Add exception for Workcycle nodes
-    if location_details['node_configs']['wc'] == 1:
+    if location.work_cycle == True:
         for event_type in location_event_report['no_events'].keys():
             if event_type in ['start', 'start-d', 'stop', 'stop-u']:
                 location_event_report['no_events'][event_type] = False
@@ -133,11 +134,11 @@ async def process_per_location_events_data(location_dict, report_date, report_da
 
         # First we'll check if the equipment has ran in past lt_avg_days days
         # Get 15 min data details from analytics
-        node_data_daily_agg_frame = await get_daily_node_data_agg(location_dict['location_node_id'], data_start_date, data_end_date, api_token)
+        node_data_daily_agg_frame = await get_daily_node_data_agg(location.location_node_id, data_start_date, data_end_date, api_token)
         if not node_data_daily_agg_frame.empty:
             location_event_report['node_online'] = True
             # If there is No row with current > i_noise, then Equipment if OFF
-            if node_data_daily_agg_frame[node_data_daily_agg_frame['current'] > location_dict['node_configs']['i_noise']].empty:
+            if node_data_daily_agg_frame[node_data_daily_agg_frame['current'] > location.i_noise].empty:
                 logger.warning('Equipment is OFF for ' + location_banner)
                 location_event_report['equipment_active'] = False
         else:
@@ -147,7 +148,7 @@ async def process_per_location_events_data(location_dict, report_date, report_da
         # Second we'll check if there are missing start stop events by comparing with 1 sec data
         if location_event_report['equipment_active'] and ('start' in no_events_list or 'stop' in no_events_list):
             # Get 1 sec data details from analytics
-            sec_data_daily_agg_frame = await get_daily_1_sec_data_agg(location_dict['location_node_id'], data_start_date, data_end_date, api_token)
+            sec_data_daily_agg_frame = await get_daily_1_sec_data_agg(location.location_id, data_start_date, data_end_date, api_token)
             # If sec_data_daily_agg_frame is empty, means node is offline
             if not sec_data_daily_agg_frame.empty:
                 # means node was online in last lt_avg_days days
@@ -191,7 +192,7 @@ async def process_per_location_events_data(location_dict, report_date, report_da
 
 
 @logger.catch
-def process_daily_report(location_reports, locations_df, report_utc_date, report_utc_datetime, api_token):
+def process_daily_report(location_reports, locations: List[PortfolioV2Model], report_utc_date, report_utc_datetime, api_token):
     final_event_report = {
         'time': str(report_utc_datetime),
         'report_type': 'events_report',
@@ -215,20 +216,20 @@ def process_daily_report(location_reports, locations_df, report_utc_date, report
     # Loop through all location reports
     for location_report in location_reports:
         # Proceed only if node is online
+        location = [loc for loc in locations if loc.location_node_id == location_report['location_node_id']][0]
         if location_report['node_online'] and location_report['equipment_active']:
-            location_details = locations_df[locations_df['location_node_id'] == location_report['location_node_id']].iloc[0]
-            location_banner = str(location_details['location_name'] + ' - SN:' + str(location_details['node_sn']) + ' - ' + location_details['facility_name'] + ' - ' + str(report_utc_date))
+            location_banner = f"{location.location_name} - SN: {location.node_sn} - {location.facility_name} - {report_utc_date}"
             # If no start events, add location to no_start_events_locations
             if location_report['no_events']['start']:
                 logger.debug(f'No start events for {location_banner}')
                 no_start_events_locations.append({
                     'location_node_id': location_report['location_node_id'],
-                    'customer_id': location_details['customer_id'],
-                    'facility_id': location_details['facility_id'],
-                    'customer_name': location_details['customer_name'],
-                    'node_sn': location_details['node_sn'],
-                    'location_name': location_details['location_name'],
-                    'facility_name': location_details['facility_name'],
+                    'customer_id': location.location_node_id,
+                    'facility_id': location.facility_id,
+                    'customer_name': location.customer_name,
+                    'node_sn': location.node_sn,
+                    'location_name': location.location_name,
+                    'facility_name': location.facility_name,
                     'recent_start': location_report['recent_start']
                 })
             # If no stop events, add location to no_stop_events_locations
@@ -236,12 +237,12 @@ def process_daily_report(location_reports, locations_df, report_utc_date, report
                 logger.debug(f'No stop events for {location_banner}')
                 no_stop_events_locations.append({
                     'location_node_id': location_report['location_node_id'],
-                    'customer_id': location_details['customer_id'],
-                    'facility_id': location_details['facility_id'],
-                    'customer_name': location_details['customer_name'],
-                    'node_sn': location_details['node_sn'],
-                    'location_name': location_details['location_name'],
-                    'facility_name': location_details['facility_name'],
+                     'customer_id': location.location_node_id,
+                    'facility_id': location.facility_id,
+                    'customer_name': location.customer_name,
+                    'node_sn': location.node_sn,
+                    'location_name': location.location_name,
+                    'facility_name': location.facility_name,
                     'recent_stop': location_report['recent_stop']
                 })
             # If no voltage transient events, add location to no_voltage_transient_events_locations
@@ -249,60 +250,59 @@ def process_daily_report(location_reports, locations_df, report_utc_date, report
                 logger.debug(f'No voltage transient events for {location_banner}')
                 no_voltage_transient_events_locations.append({
                     'location_node_id': location_report['location_node_id'],
-                    'customer_id': location_details['customer_id'],
-                    'facility_id': location_details['facility_id'],
-                    'customer_name': location_details['customer_name'],
-                    'node_sn': location_details['node_sn'],
-                    'location_name': location_details['location_name'],
-                    'facility_name': location_details['facility_name'],
+                     'customer_id': location.location_node_id,
+                    'facility_id': location.facility_id,
+                    'customer_name': location.customer_name,
+                    'node_sn': location.node_sn,
+                    'location_name': location.location_name,
+                    'facility_name': location.facility_name,
                 })
             # If no current transient events, add location to no_current_transient_events_locations
             if location_report['no_events']['current_rise'] and location_report['no_events']['current_fall']:
                 logger.debug(f'No current transient events for {location_banner}')
                 no_current_transient_events_locations.append({
                     'location_node_id': location_report['location_node_id'],
-                    'customer_id': location_details['customer_id'],
-                    'facility_id': location_details['facility_id'],
-                    'customer_name': location_details['customer_name'],
-                    'node_sn': location_details['node_sn'],
-                    'location_name': location_details['location_name'],
-                    'facility_name': location_details['facility_name'],
+                   'customer_id': location.location_node_id,
+                    'facility_id': location.facility_id,
+                    'customer_name': location.customer_name,
+                    'node_sn': location.node_sn,
+                    'location_name': location.location_name,
+                    'facility_name': location.facility_name,
                 })
             # Loop through events_trending
             for event_trending in location_report['events_trending']:
                 # Create a dataframe
                 events_trending_locations.append({
-                    'customer_name': location_details['customer_name'],
-                    'location_name': location_details['location_name'],
-                    'node_sn': location_details['node_sn'],
-                    'facility_name': location_details['facility_name'],
+                    'customer_id': location.location_node_id,
+                    'facility_id': location.facility_id,
+                    'customer_name': location.customer_name,
+                    'node_sn': location.node_sn,
+                    'location_name': location.location_name,
+                    'facility_name': location.facility_name,
                     'event_type': event_trending['event_type'],
                     'st_avg_count': event_trending['st_avg_count'],
                     'lt_avg_count': event_trending['lt_avg_count'],
                     'change': event_trending['change'],
                     'threshold': event_trending['threshold'],
                     'location_node_id': location_report['location_node_id'],
-                    'customer_id': location_details['customer_id'],
-                    'facility_id': location_details['facility_id'],
                 })
             # Get outlier events for the location
-            np_current = float(location_details['node_configs']['np_current'])
-            outlier_events_df = get_outlier_events(str(report_utc_date), location_report['location_node_id'], np_current, outlier_lt_days, api_token)
+            outlier_events_df = get_outlier_events(str(report_utc_date), location_report['location_node_id'], location.np_current, outlier_lt_days, api_token)
             # loop through outlier events
             for outlier_event in outlier_events_df.to_dict('records'):
                 # Create outlier events dict
                 outlier_events.append({
-                    'customer_name': location_details['customer_name'],
-                    'location_name': location_details['location_name'],
-                    'node_sn': location_details['node_sn'],
-                    'facility_name': location_details['facility_name'],
+                     'customer_id': location.location_node_id,
+                    'facility_id': location.facility_id,
+                    'customer_name': location.customer_name,
+                    'node_sn': location.node_sn,
+                    'location_name': location.location_name,
+                    'facility_name': location.facility_name,
                     'event_utc_timestamp': str(outlier_event['time']),
                     'event_type': outlier_event['event_type'],
                     'outlier_type': outlier_event['outlier_type'],
                     's3_bucket_key_pair': outlier_event['s3_bucket_key_pair'],
                     'location_node_id': location_report['location_node_id'],
-                    'customer_id': location_details['customer_id'],
-                    'facility_id': location_details['facility_id'],
                 })
     # Create dataframes
     no_start_events_locations_df = pd.DataFrame(no_start_events_locations)
@@ -537,7 +537,7 @@ def email_events_report(final_event_report, report_receivers, report_date, email
 
 
 @logger.catch
-def backfill_events_report_init(avg_dates_lists, locations_records, locations_df, api_token):
+def backfill_events_report_init(avg_dates_lists, locations: List[PortfolioV2Model],api_token):
     report_utc_date, report_utc_datetime = avg_dates_lists[0], avg_dates_lists[1]
     # Create asyncio event loop
     loop = asyncio.get_event_loop()
@@ -545,14 +545,14 @@ def backfill_events_report_init(avg_dates_lists, locations_records, locations_df
     tasks = []
     start_timer = time.time()
     task_count = 0
-    for location in locations_records:
+    for location in locations:
         task_count += 1
         tasks.append(process_per_location_events_data(location, report_utc_date, report_utc_datetime, api_token))
     # Run all tasks with async functions in it
     location_reports = loop.run_until_complete(asyncio.gather(*tasks))
     # loop.close()
     # Process daily report using location reports
-    events_report = process_daily_report(location_reports, locations_df, report_utc_date, report_utc_datetime, api_token)
+    events_report = process_daily_report(location_reports, locations, report_utc_date, report_utc_datetime, api_token)
     # Post report to Analytics
     post_status = post_events_report(events_report, api_token)
     return task_count
@@ -642,23 +642,12 @@ def process_events_report(env='staging', debug=False, backfill=False, start_date
             report_receivers = ['analytics-reports@voltainsite.com']
 
         # Get Locations
-        locations_df = equipment_portfolio_df(api_token)
-        if not locations_df.empty:
-            # Filter locations where Events Report needs to run
-            locations_df = locations_df[
-                (locations_df.node_details.apply(lambda x: x['deploymentIssue'] == False)) &
-                (locations_df.node_details.apply(lambda x: x['currentDeploymentStatus'] == 'Deployed'))
-                ]
-            # Only do event report on specific customers
-            locations_df = locations_df[~locations_df['customer_code'].isin(['lab'])]
-            # Only do event report on specific equipment types
-            locations_df = locations_df[~locations_df['equipment_type'].isin(['UtilityMain'])]
-            # locations_df = locations_df[locations_df['node_sn'] == 21051]
-            # Convert to records
-            locations_records = locations_df.to_dict('records')
-        else:
-            process_logger.error('No locations found')
-            sys.exit(1)
+        locations = get_analytics_portfolio(server_path='', analytics_api_token=api_token)
+
+        locations = [location for location in locations if location.deployment_issue == False 
+                                                            and location.current_deployment_status == 'Deployed'
+                                                            and location.customer_code in ['gp']
+                                                            and location.equipment_type not in ['UtilityMain']]
 
         # If not backfill
         if not backfill:
@@ -667,7 +656,7 @@ def process_events_report(env='staging', debug=False, backfill=False, start_date
             # Replace time with zeros
             report_utc_datetime = [(dt.datetime.utcnow() - dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S')]
             # Log number of records to process
-            logger.info('Number of locations to process: {}'.format(len(locations_records)))
+            logger.info('Number of locations to process: {}'.format(len(locations)))
             start_timer = time.time()
             task_count = 0
             # Loop through dates
@@ -676,7 +665,7 @@ def process_events_report(env='staging', debug=False, backfill=False, start_date
                 tasks = []
                 # Create asyncio event loop, run tasks in parallel and gather results
                 loop = asyncio.get_event_loop()
-                for location in locations_records:
+                for location in locations:
                     task_count += 1
                     # Create a task
                     task = loop.create_task(process_per_location_events_data(location, report_utc_date, report_utc_datetime, api_token))
@@ -686,7 +675,7 @@ def process_events_report(env='staging', debug=False, backfill=False, start_date
                 location_reports = loop.run_until_complete(asyncio.gather(*tasks))
                 loop.close()
                 # Process daily report using location reports
-                events_report = process_daily_report(location_reports, locations_df, report_utc_date, report_utc_datetime, api_token)
+                events_report = process_daily_report(location_reports, locations, report_utc_date, report_utc_datetime, api_token)
                 # Post report to Analytics
                 post_status = post_events_report(events_report, api_token)
                 if post_status:
@@ -708,12 +697,12 @@ def process_events_report(env='staging', debug=False, backfill=False, start_date
             ]
             avg_dates_lists = [[x, y] for x, y in zip(avg_dates_utc, avg_datetimes_utc)]
             # Log number of records to process
-            logger.info('Number of locations to process: {}'.format(len(locations_records)))
+            logger.info('Number of locations to process: {}'.format(len(locations)))
             logger.info('Averaging date: {}'.format(avg_dates_utc))
             logger.info('Averaging datetime: {}'.format(avg_datetimes_utc))
             start_timer = time.time()
             with Pool(cpu_count()) as pool:
-                task_counts_list = pool.map(partial(backfill_events_report_init, locations_records=locations_records, locations_df=locations_df), avg_dates_lists)
+                task_counts_list = pool.map(partial(backfill_events_report_init, locations_records=locations), avg_dates_lists)
             end_timer = time.time()
             logger.info('Total time taken: {} seconds'.format(round(end_timer - start_timer, 2)))
             # Get total task count
