@@ -1,7 +1,13 @@
+import sys
+sys.path.append('/config/')
+sys.path.append('/dags/')
+
 import os
-from datetime import timedelta, datetime
+from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+from datetime import datetime
+
 
 # Define the default_args dictionary
 airflow_default_dag_args = {
@@ -15,12 +21,11 @@ airflow_default_dag_args = {
 
 # Instantiate a DAG
 dag = DAG(
-    'one_sec_reprocess_detection',
-    default_args=airflow_default_dag_args,
-    description='Analytics Priority Alerts processing',
-    schedule_interval='0 0 * * *',  # Set the schedule interval as needed
-    max_active_runs=1,
-    catchup=False)
+        dag_id="one_sec_reprocess_detection",
+        schedule_interval="0 0 * * *",
+        default_args=airflow_default_dag_args,
+        catchup=False,
+        max_active_runs=1)
 
 # Set the virtual environment path
 venv_path = "/opt/airflow/virtual_env/volta-analytics-data-flow_venv"
@@ -49,12 +54,10 @@ install_deps_task = BashOperator(
     dag=dag,
 )
 
-# Run the example script
 change_detect_scan = BashOperator(
     task_id='change_detect_scan',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.one_sec_metrics_reprocessing_detector",
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python main.py one_sec_metric_reprocessing {os.getenv('SERVER')}",
     dag=dag,
-    execution_timeout=timedelta(hours=1),
 )
 
 # Set task dependencies

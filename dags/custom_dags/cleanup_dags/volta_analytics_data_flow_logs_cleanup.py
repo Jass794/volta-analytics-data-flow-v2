@@ -26,7 +26,7 @@ dag = DAG(
 # Run the example script
 logs_clean_up_task = BashOperator(
     task_id='process_standard_alerts',
-    bash_command=f"cd /opt/airflow/dags/volta-analytics-data-flow && python manage_logs.py",
+    bash_command=f"cd /opt/airflow/dags/volta-analytics-data-flow && python main.py manage_logs {os.getenv('SERVER')}",
     dag=dag,
     execution_timeout=timedelta(hours=1),
 )

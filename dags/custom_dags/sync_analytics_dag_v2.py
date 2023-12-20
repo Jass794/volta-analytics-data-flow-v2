@@ -1,15 +1,13 @@
-import os
 import sys
+sys.path.append('/config/')
+sys.path.append('/dags/')
 
-from datetime import timedelta, datetime
+import os
+from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from dotenv import load_dotenv
+from datetime import datetime
 
-sys.path.append('/dags/sync_analytics/')
-
-load_dotenv(f'{os.getcwd()}/.env')
-load_dotenv(f"{os.getcwd()}/.{os.getenv('SERVER')}.env")
 
 # Define the default_args dictionary
 airflow_default_dag_args = {
@@ -21,22 +19,46 @@ airflow_default_dag_args = {
     'email': 'analytics-data-flow-errors@voltainsite.com'
 }
 
-
+# Instantiate a DAG
 dag = DAG(
-    'sync_analytics',
-    default_args=airflow_default_dag_args,
-    description='Execute sync analytics using bash',
-    schedule_interval="*/10 * * * *",
-    max_active_runs=1,
-    catchup=False,
-)
+        dag_id="sync_analytics",
+        schedule_interval="*/10 * * * *",
+        default_args=airflow_default_dag_args,
+        catchup=False,
+        max_active_runs=1)
 
-# BashOperator to execute the Python script using the python command
-execute_python_script_task = BashOperator(
-    task_id='sync_analytics',
-    bash_command=f"cd /opt/airflow/dags/sync_analytics && python sync_analytics_v2.py {os.getenv('SERVER')}",
-    env={'PORTAL_ADMIN_API_TOKEN': os.getenv('PORTAL_ADMIN_API_TOKEN'),
-         'ANALYTICS_SYNC_PORTAL_API_TOKEN': os.getenv('ANALYTICS_SYNC_PORTAL_API_TOKEN'),
-         'GMAIL_APP_PASSWORD': os.getenv('GMAIL_APP_PASSWORD')},
+# Set the virtual environment path
+venv_path = "/opt/airflow/virtual_env/volta-analytics-data-flow_venv"
+requirements_path = "/opt/airflow/dags/volta-analytics-data-flow/requirements.txt"
+
+# Define the BashOperators for each step
+
+# Check if the virtual environment exists before creating
+check_venv_task = BashOperator(
+    task_id='check_venv',
+    bash_command=f"if [ -d {venv_path} ]; then echo 'Virtual environment exists'; else echo 'Virtual environment does not exist'; fi",
     dag=dag,
 )
+
+# Create virtual environment only if it doesn't exist
+create_venv_task = BashOperator(
+    task_id='create_venv',
+    bash_command=f"if [ ! -d {venv_path} ]; then python3 -m venv --copies {venv_path}; fi",
+    dag=dag,
+)
+
+# Install dependencies only if requirements.txt is present and not already satisfied
+install_deps_task = BashOperator(
+    task_id='install_dependencies',
+    bash_command=f"if [ -f {requirements_path} ] && ! (source {venv_path}/bin/activate && pip freeze | grep -q -F -x -f {requirements_path}); then source {venv_path}/bin/activate && pip install --upgrade -r {requirements_path}; fi",
+    dag=dag,
+)
+
+sync_analytics_task = BashOperator(
+    task_id='sync_analytics_task',
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python main.py sync_analytics {os.getenv('SERVER')}",
+    dag=dag,
+)
+
+# Set task dependencies
+check_venv_task >> create_venv_task >> install_deps_task >> sync_analytics_task

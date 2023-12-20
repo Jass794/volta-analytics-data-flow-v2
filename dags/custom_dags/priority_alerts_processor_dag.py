@@ -1,7 +1,13 @@
+import sys
+sys.path.append('/config/')
+sys.path.append('/dags/')
+
 import os
-from datetime import timedelta, datetime
+from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+from datetime import datetime
+
 
 # Define the default_args dictionary
 airflow_default_dag_args = {
@@ -13,15 +19,13 @@ airflow_default_dag_args = {
     'email': 'analytics-data-flow-errors@voltainsite.com'
 }
 
-
 # Instantiate a DAG
 dag = DAG(
-    'priority_alerts_processing',
-    default_args=airflow_default_dag_args,
-    description='Analytics Priority Alerts processing',
-    schedule_interval=timedelta(minutes=1),  # Set the schedule interval as needed
-    max_active_runs=1,
-    catchup=False)
+        dag_id="priority_alerts_processing",
+        schedule_interval=timedelta(minutes=1),
+        default_args=airflow_default_dag_args,
+        catchup=False,
+        max_active_runs=1)
 
 # Set the virtual environment path
 venv_path = "/opt/airflow/virtual_env/volta-analytics-data-flow_venv"
@@ -50,12 +54,10 @@ install_deps_task = BashOperator(
     dag=dag,
 )
 
-# Run the example script
 process_priority_alerts_task = BashOperator(
-    task_id='process_priority_alerts',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.priority_alert_queues {os.getenv('SERVER')}",
+    task_id='priority_alerts_processing',
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python main.py priority_alerts_processing {os.getenv('SERVER')}",
     dag=dag,
-    execution_timeout=timedelta(hours=1),
 )
 
 # Set task dependencies

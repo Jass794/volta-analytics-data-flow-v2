@@ -1,7 +1,13 @@
+import sys
+sys.path.append('/config/')
+sys.path.append('/dags/')
+
 import os
-from datetime import timedelta, datetime
+from datetime import timedelta
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+from datetime import datetime
+
 
 # Define the default_args dictionary
 airflow_default_dag_args = {
@@ -15,12 +21,11 @@ airflow_default_dag_args = {
 
 # Instantiate a DAG
 dag = DAG(
-    'standard_alerts_processing',
-    default_args=airflow_default_dag_args,
-    description='Analytics Alerts processing',
-    schedule_interval=timedelta(minutes=5),  # Set the schedule interval as needed
-    max_active_runs=1,
-    catchup=False)
+        dag_id="standard_alerts_processing",
+        schedule_interval=timedelta(minutes=5),
+        default_args=airflow_default_dag_args,
+        catchup=False,
+        max_active_runs=1)
 
 # Set the virtual environment path
 venv_path = "/opt/airflow/virtual_env/volta-analytics-data-flow_venv"
@@ -49,13 +54,11 @@ install_deps_task = BashOperator(
     dag=dag,
 )
 
-# Run the example script
-process_standard_alerts_task = BashOperator(
-    task_id='process_standard_alerts',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.standard_alert_queues {os.getenv('SERVER')}",
+standard_alerts_processing_task = BashOperator(
+    task_id='standard_alerts_processing',
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python main.py standard_alerts_processing {os.getenv('SERVER')}",
     dag=dag,
-    execution_timeout=timedelta(hours=1),
 )
 
 # Set task dependencies
-check_venv_task >> create_venv_task >> install_deps_task >> process_standard_alerts_task
+check_venv_task >> create_venv_task >> install_deps_task >> standard_alerts_processing_task

@@ -52,9 +52,8 @@ install_deps_task = BashOperator(
 # Run the example script
 process_files_task = BashOperator(
     task_id='reprocess_files',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python -m lambdas.process_file_queues {os.getenv('SERVER')} reprocess",
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow && python main.py files_processing {os.getenv('SERVER')} reprocess",
     dag=dag,
-    execution_timeout=timedelta(hours=1),
 )
 
 # Set task dependencies
