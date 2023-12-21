@@ -53,7 +53,7 @@ install_deps_task = BashOperator(
 # Run the example script
 create_harmonic_alerts = BashOperator(
     task_id='create_harmonic_alerts',
-    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow &&  python -m jobs.daily.harmonic_frequency_alert_v2 -t Current {os.getenv('SERVER')}",
+    bash_command=f"source {venv_path}/bin/activate && cd /opt/airflow/dags/volta-analytics-data-flow &&  python main.py current_harmonic_freq_alert {os.getenv('SERVER')}",
     dag=dag,
     execution_timeout=timedelta(hours=1),
 )
