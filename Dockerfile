@@ -1,4 +1,4 @@
-FROM apache/airflow:2.7.0
+FROM apache/airflow:2.8.0-python3.10
 
 USER root
 
@@ -9,10 +9,5 @@ USER airflow
 ARG GITHUB_TOKEN
 
 ENV GITHUB_TOKEN=$GITHUB_TOKEN
-
-COPY requirements.txt .
-
-RUN /usr/local/bin/python -m pip install --upgrade pip
-RUN pip --no-cache-dir install -r requirements.txt
 
 
