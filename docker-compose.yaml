@@ -24,7 +24,7 @@
 # The following variables are supported:
 #
 # AIRFLOW_IMAGE_NAME           - Docker image name used to run Airflow.
-#                                Default: apache/airflow:2.7.0
+#                                Default: apache/airflow:2.8.0
 # AIRFLOW_UID                  - User ID in Airflow containers
 #                                Default: 50000
 # AIRFLOW_PROJ_DIR             - Base path to which all the files will be volumed.
@@ -44,13 +44,11 @@
 #
 # Feel free to modify this file to suit your needs.
 ---
-version: '3.8'
 x-airflow-common:
   &airflow-common
   # In order to add custom dependencies or upgrade provider packages you can use your extended image.
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
-  # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.7.0}
   build:
     context: .
     args:
@@ -58,7 +56,7 @@ x-airflow-common:
 
   env_file:
     - .env
-
+  
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
@@ -80,10 +78,8 @@ x-airflow-common:
 services:
   postgres:
     image: postgres:13
-
     env_file:
       - .env
-
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
@@ -107,9 +103,9 @@ services:
 
   airflow-webserver:
     <<: *airflow-common
+    command: webserver
     env_file:
       - .env
-    command: webserver
     ports:
       - "8080:8080"
     healthcheck:
@@ -153,13 +149,11 @@ services:
       start_period: 30s
     env_file:
       - .env
-
     environment:
       # Required to handle warm shutdown of the celery workers properly
       # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
       DUMB_INIT_SETSID: "0"
     restart: always
-
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -187,20 +181,6 @@ services:
     command:
       - -c
       - |
-        function ver() {
-          printf "%04d%04d%04d%04d" $${1//./ }
-        }
-        airflow_version=$$(AIRFLOW__LOGGING__LOGGING_LEVEL=INFO && gosu airflow airflow version)
-        airflow_version_comparable=$$(ver $${airflow_version})
-        min_airflow_version=2.2.0
-        min_airflow_version_comparable=$$(ver $${min_airflow_version})
-        if (( airflow_version_comparable < min_airflow_version_comparable )); then
-          echo
-          echo -e "\033[1;31mERROR!!!: Too old Airflow version $${airflow_version}!\e[0m"
-          echo "The minimum Airflow version supported: $${min_airflow_version}. Only use this or higher!"
-          echo
-          exit 1
-        fi
         if [[ -z "${AIRFLOW_UID}" ]]; then
           echo
           echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
@@ -261,7 +241,6 @@ services:
       - debug
     env_file:
       - .env
-
     environment:
       CONNECTION_CHECK_MAX_COUNT: "0"
     # Workaround for entrypoint issue. See: https://github.com/apache/airflow/issues/16252
